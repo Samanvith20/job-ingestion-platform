@@ -1,0 +1,45 @@
+{
+  "name": "jobs-scraping",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "index.js",
+  "lint-staged": {
+    "*.{js,mjs,cjs,ts,tsx,jsx}": [
+      "pnpm lint:fix",
+      "pnpm format",
+      "git add"
+    ]
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "prepare": "husky"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.19.0",
+  "dependencies": {
+    "@sentry/node": "^10.38.0",
+    "axios": "^1.13.4",
+    "bullmq": "^5.67.3",
+    "cheerio": "^1.2.0",
+    "mongoose": "^9.1.6",
+    "redis": "^5.10.0",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0"
+  },
+  "devDependencies": {
+    "@commitlint/config-conventional": "^20.4.1",
+    "@eslint/js": "^10.0.1",
+    "commitlint": "^20.4.1",
+    "eslint": "^10.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.3.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.8.1"
+  }
+}
