@@ -6,6 +6,7 @@ const rawJobSchema = new mongoose.Schema(
 
     externalId: {
       type: String,
+      unique: true,
       required: true,
     },
     source: {

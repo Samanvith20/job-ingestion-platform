@@ -22,14 +22,23 @@
   "license": "ISC",
   "packageManager": "pnpm@10.19.0",
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.26",
     "@sentry/node": "^10.38.0",
+    "ai": "^6.0.78",
     "axios": "^1.13.4",
+    "axios-retry": "^4.5.0",
     "bullmq": "^5.67.3",
     "cheerio": "^1.2.0",
+    "compute-cosine-similarity": "^1.1.0",
+    "dotenv": "^17.2.4",
+    "https-proxy-agent": "^7.0.6",
     "mongoose": "^9.1.6",
+    "neo4j-driver": "^6.0.1",
+    "openai": "^6.18.0",
     "redis": "^5.10.0",
     "winston": "^3.19.0",
-    "winston-daily-rotate-file": "^5.0.0"
+    "winston-daily-rotate-file": "^5.0.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@commitlint/config-conventional": "^20.4.1",

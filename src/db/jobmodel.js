@@ -2,8 +2,7 @@ import mongoose from "mongoose";
 
 const jobSchema = new mongoose.Schema(
   {
-    _id: { type: String },              // same as raw job id
-
+    _id: { type: String },           
     // identity
     job_id: { type: String, required: true },
     source: { type: String },
@@ -49,10 +48,10 @@ const jobSchema = new mongoose.Schema(
 
     // processed description
     description: String,
+    extracted_by: String, 
 
     is_published: { type: Boolean, default: false },
-     // metadata for graph/math
-    processed_at: { type: Date, default: false },
+    is_ingested: {type:Boolean,default:false}
   },
   { collection: "jobs", timestamps: true }
 );

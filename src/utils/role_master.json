@@ -1,0 +1,349 @@
+{
+  
+  "Data Scientist / ML Engineer": [
+  "machine learning",
+  "ml",
+  "model training",
+  "supervised learning",
+  "unsupervised learning",
+  "deep learning",
+  "tensorflow",
+  "pytorch",
+  "scikit-learn",
+  "pandas",
+  "numpy",
+  "statistics",
+  "feature engineering",
+  "nlp",
+  "computer vision",
+  "neural networks"
+]
+,
+  
+  "DevOps Engineer": [
+    "devops", "docker", "kubernetes", "k8s", "terraform", "ansible",
+    "jenkins", "ci/cd", "aws", "azure", "gcp", "gitlab", "github actions"
+  ],
+  "Embedded / Firmware Engineer": [
+  "embedded",
+  "firmware",
+  "verilog",
+  "vhdl",
+  "rtos",
+  "microcontroller",
+  "soc",
+  "asic",
+  "rtl"
+],
+
+
+"Network Engineer": [
+  "networking",
+  "routing",
+  "switching",
+  "tcp/ip",
+  "dns",
+  "dhcp",
+  "bgp",
+  "ospf"
+]
+,
+
+"System Administrator": [
+  "linux", "windows server", "system admin", "shell scripting", "ubuntu"
+],
+
+"Site Reliability Engineer": [
+  "sre", "observability", "prometheus", "grafana", "incident management"
+],
+
+"Blockchain Engineer": [
+  "blockchain", "web3", "solidity", "ethereum", "smart contract"
+],
+"Software Engineer / Developer": [
+  "software development",
+  "software engineer",
+  "programming",
+  "coding",
+  "algorithms",
+  "data structures",
+  "object oriented programming",
+  "oop",
+  "debugging",
+  "version control",
+  "git"
+]
+,
+"Security Engineer / IAM": [
+  "identity access management",
+  "iam",
+  "okta",
+  "active directory",
+  "azure ad",
+  "oauth",
+  "sso",
+  "cloud security",
+  "security architecture"
+]
+,
+
+"AI Engineer (LLM/GenAI)": [
+  "llm",
+  "large language model",
+  "genai",
+  "generative ai",
+  "prompt engineering",
+  "rag",
+  "retrieval augmented generation",
+  "langchain",
+  "openai",
+  "hugging face",
+  "transformers",
+  "gpt",
+  "bert",
+  "vector database",
+  "embeddings"
+]
+,
+
+  "Salesforce Developer / Admin": [
+  "salesforce", "sfdc", "apex", "lightning", "visualforce",
+  "salesforce crm", "salesforce development", "salesforce admin",
+  "salesforce qa", "salesforce testing", "sales cloud", "service cloud"
+],
+
+  "Backend Developer": [
+    "java", "python", "node", "node.js", ".net", "c#", "go", "ruby",
+    "spring boot", "django", "flask", "express", "api", "rest api",
+    "microservices",  "nosql", "mongodb", "postgresql",
+     "spring", "spring framework", "hibernate", "jpa",
+  "maven", "gradle", "redis", "rabbitmq", "grpc",
+  "orm", "jdbc", "servlet", "tomcat", "jboss",    "hibernate",    "rest",
+    "restful",
+    "graphql"
+  
+  ],
+  
+  "Frontend Developer": [
+    "react", "angular", "vue", "javascript", "typescript", "html", "css",
+    "react.js", "next.js", "webpack", "redux", "ui", "ux"
+  ],
+  
+  "Fullstack Developer": [
+    "full stack", "fullstack", "mern", "mean", "react", "node.js",
+    "angular", "java fullstack", ".net fullstack", "javascript",
+    "mongodb", "sql", "api development"
+  ],
+  
+  "Cloud Engineer": [
+    "aws", "azure", "gcp", "google cloud", "cloud", "ec2", "s3",
+    "lambda", "cloudformation", "terraform", "cloud architecture",
+    "gcp", "google cloud platform", "cloud platform", "gcp cloud"
+
+  ],
+  "Application Support Engineer": [
+  "application support",
+  "production support",
+  "l2 support",
+  "l3 support",
+  "incident management",
+  "monitoring",
+  "troubleshooting",
+  "mysql",
+  "sql",
+  "linux",
+  "shell scripting"
+]
+,
+  
+"Data Engineer": [
+  "sql",
+  "spark",
+  "pyspark",
+  "etl",
+  "data pipeline",
+  "data pipelines",
+  "data warehouse",
+  "snowflake",
+  "bigquery",
+  "redshift",
+  "databricks",
+  "airflow",
+  "kafka"
+]
+,
+
+  "QA / Test Engineer": [
+  "selenium", "testing", "qa", "quality assurance", "automation testing",
+    "cypress", "junit", "testng", "api testing", "manual testing",
+    "test automation", "pytest", "postman",
+    "test cases",
+    "test engineer",
+    "software testing",
+    "regression testing",
+    "performance testing",
+    "automation framework"
+  ],
+  
+ "Mobile Developer": [
+    "android", "ios", "react native", "flutter", "swift", "kotlin",
+    "mobile development", "mobile app",
+    "android application development",
+    "kotlin android",
+    "java android",
+    "mobile apps",
+    "android development",
+    "ios development"
+],
+  
+  "Database Engineer / DBA": [
+  "dba", "database administrator", "mysql", "postgresql", "oracle",
+    "sql server", "mongodb", "database", "sql", "database performance",
+    "database administration",
+    "sql database",
+    "dbms",
+    "database management",
+    "rds",
+    "database tuning"
+  ],
+  
+  
+  "Business Analyst": [
+     "business analyst", "business analysis", "requirements gathering",
+    "user stories", "jira", "confluence", "sql", "power bi", "tableau",
+    "process improvement", "stakeholder management", "agile", "scrum",
+    "business requirements",
+    "requirements analysis",
+    "functional requirements",
+    "use cases",
+    "business process",
+    "gap analysis"
+  ],
+  
+  "Data Analyst": [
+    "data analyst", "data analysis", "sql", "excel", "power bi", "tableau",
+    "analytics", "data visualization", "reporting", "statistics"
+  ],
+  
+  "Product Manager": [
+    "product management", "product manager", "roadmap", "product strategy",
+    "user research", "agile", "scrum", "stakeholder management", "analytics"
+  ],
+  
+  
+  "Sales Executive / Business Development": [
+    "sales", "business development", "b2b", "b2c", "lead generation",
+    "cold calling", "enterprise sales", "field sales", "inside sales",
+    "client acquisition", "new client acquisition", "prospecting"
+  ],
+  
+  "Marketing Manager": [
+    "marketing", "digital marketing", "social media marketing",
+    "content marketing", "seo", "sem", "facebook marketing",
+    "google marketing", "linkedin marketing", "campaign management"
+  ],
+  
+  "HR Manager": [
+    "hr", "human resources", "recruitment", "talent acquisition",
+    "hiring", "sourcing", "interviewing", "hris", "payroll"
+  ],
+  
+  "Operations Manager": [
+    "operations", "supply chain", "logistics", "procurement",
+    "inventory management", "warehouse management", "planning"
+  ],
+  
+  "Finance Manager": [
+    "finance", "accounting", "accounts", "financial analysis",
+    "budgeting", "taxes", "financial reporting", "financial statements",
+    "financial planning"
+  ],
+  "ERP Consultant (SAP/Oracle/Dynamics)": [
+    "sap", "oracle", "dynamics", "erp", "sap hana", "sap abap",
+    "oracle fusion", "oracle cloud", "workday", "erp implementation",
+    "sap fico", "sap mm", "sap sd"
+  ],
+  
+  "Solutions Architect": [
+    "solution architect", "solutions architect", "architecture",
+    "technical architecture", "system design", "cloud architecture",
+    "enterprise architecture", "aws architect", "azure architect"
+  ],
+  
+  
+  "Customer Support / BPO": [
+    "customer support", "customer service", "bpo", "call center",
+    "customer care", "voice process", "chat support", "helpdesk",
+    "technical support", "client support"
+  ],
+  
+  "HR / Talent Acquisition": [
+    "hr", "human resources", "recruitment", "talent acquisition",
+    "hiring", "sourcing", "interviewing", "hris", "payroll"
+  ],
+  
+  "Operations / Supply Chain": [
+    "operations", "supply chain", "logistics", "procurement",
+    "inventory management", "warehouse management", "planning"
+  ],
+  
+  "Sales / Business Development": [
+    "sales", "business development", "b2b", "b2c", "lead generation",
+    "cold calling", "enterprise sales", "field sales", "inside sales",
+    "client acquisition", "new client acquisition", "prospecting"
+  ],
+  
+  "Marketing / Digital Marketing": [
+    "marketing", "digital marketing", "social media marketing",
+    "content marketing", "seo", "sem", "facebook marketing",
+    "google marketing", "linkedin marketing", "campaign management"
+  ],
+  "Finance / Accounts": [
+    "finance", "accounting", "accounts", "financial analysis",
+    "budgeting", "forecasting", "financial reporting", "tally",
+    "gst", "accounts payable", "accounts receivable", "taxation"
+  ],
+  
+  
+  
+  "Cybersecurity Engineer": [
+    "cybersecurity", "security", "penetration testing", "ethical hacking",
+    "network security", "firewall", "siem", "soc", "vulnerability assessment",
+    "incident response", "security analyst"
+  ],
+  "Project Manager": [
+    "project management", "pmp", "agile", "scrum master", "jira", "stakeholder management"
+  ],
+
+"Content Writer": [
+    "content writing", "technical writing", "documentation", "copywriting"
+  ],
+
+"Accountant": [
+    "accounting", "tally", "gst", "bookkeeping", "accounts"
+  ],
+
+"IT Support / Helpdesk": [
+    "helpdesk", "it support", "troubleshooting", "windows", "hardware support"
+  ],
+
+"Legal / Compliance": [
+    "compliance", "legal", "contracts", "regulatory", "risk management"
+  ],
+  
+  "UI/UX Designer": [
+    "ui", "ux", "user interface", "user experience", "figma", "sketch",
+    "wireframing", "prototyping", "adobe xd", "design systems"
+  ],
+  
+  "Graphic Designer": [
+    "graphic design", "adobe photoshop", "adobe illustrator",
+    "visual design", "branding", "logo design", "typography"
+  ],
+  
+  
+  "Teacher / Educator": [
+    "teaching", "teacher", "education", "curriculum", "classroom management",
+    "lesson planning", "student assessment"
+  ]
+}
