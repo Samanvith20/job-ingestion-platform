@@ -11,7 +11,7 @@ const driver = neo4j.driver(
 // ═══════════════════════════════════════════════════════════════
 // QUERY 1: Create Role-Skill relationships (ESSENTIAL)
 // ═══════════════════════════════════════════════════════════════
-export async function createRoleSkillLinks() {
+export  async function createRoleSkillLinks() {
   const session = driver.session({ defaultAccessMode: neo4j.session.WRITE });
   
   try {
@@ -55,7 +55,7 @@ export async function createRoleSkillLinks() {
 // ═══════════════════════════════════════════════════════════════
 // QUERY 2: Calculate Skill Demand (ESSENTIAL)
 // ═══════════════════════════════════════════════════════════════
-export async function calculateSkillDemand() {
+export  async function calculateSkillDemand() {
   const session = driver.session({ defaultAccessMode: neo4j.session.WRITE });
   
   try {

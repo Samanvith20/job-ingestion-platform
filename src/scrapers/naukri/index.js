@@ -40,4 +40,4 @@ export async function naukriScraper() {
 
   naukriLogger.info('🎉 Naukri Scraper Completed');
 }
-naukriScraper()
+//naukriScraper()

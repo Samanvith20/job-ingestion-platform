@@ -1,10 +1,10 @@
 import cron from 'node-cron';
-import { calculateSkillDemand, createRoleSkillLinks } from './utils/postprocessing';
-import { founditScraper } from './scrapers/foundit';
-import { internshalajobsScraper } from './scrapers/internshala';
-import { naukriScraper } from './scrapers/naukri';
-import { runCleanup } from './utils/daily-job-cleanup';
-import { runIngestion } from './utils/neo4jingest';
+import { calculateSkillDemand, createRoleSkillLinks } from './utils/postprocessing.js';
+import { founditScraper } from './scrapers/foundit/index.js';
+import { internshalajobsScraper } from './scrapers/internshala/index.js';
+import { naukriScraper } from './scrapers/naukri/index.js';
+import { runCleanup } from './utils/daily-job-cleanup.js';
+import { runIngestion } from './utils/neo4jingest.js';
  async function main(){
   console.log("main is running successfully")
 
