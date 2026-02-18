@@ -10,9 +10,7 @@ const jobSchema = new mongoose.Schema(
 
     // normalized title
     job_title: { type: String, required: true },
-    role_title: { type: String },      // ← from embeddings (very important)
-    role_code: { type: String },       // O*NET code
-
+    role_title: { type: String },   
     // company
     company_name: { type: String },
 
@@ -48,7 +46,9 @@ const jobSchema = new mongoose.Schema(
 
     // processed description
     description: String,
-    extracted_by: String, 
+    extracted_by: String,  // Dates
+    posted_at: { type: Date, default: null },
+    expiry_at: { type: Date, default: null },
 
     is_published: { type: Boolean, default: false },
     is_ingested: {type:Boolean,default:false}

@@ -1,109 +1,111 @@
-import fs from 'fs';
-
-import { client } from './ScraperUtilityfunctions.js';
-
-import { generateObject } from 'ai';
-import { SkillSchema } from './schema.js';
+import fs from "fs";
+import { client, processMicroChunkWithFallback, splitArray } from "./ScraperUtilityfunctions.js";
+import { generateObject } from "ai";
+import { SkillSchema } from "./schema.js";
+import redis from "../config/redis.js";
 
 // ---- CONFIG ----
 const CHUNK_SIZE = 300;
+const REDIS_KEY = "skill_classification:last_batch";
+const LOCK_KEY = "skill_classification:lock";
+const SKILL_FILE = "./unique_skills.txt";
 
-// ---- READ SKILLS ----
-const skills = fs
-  .readFileSync('./unique_skills.txt', 'utf-8')
-  .split('\n')
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-// ---- PROMPT ----
-function buildPrompt(skillChunk) {
-  return `
-You are helping build a job market skill taxonomy.
-
-Classify EACH skill into EXACTLY ONE of these categories:
-
-1) technical → programming languages, frameworks, databases, networking, security, engineering concepts
-2) tools → software tools, platforms, cloud services, devops tools, utilities
-3) soft → communication, leadership, teamwork, behavioral skills
-
-STRICT RULES:
-- Do NOT rename skills
-- Do NOT remove skills
-- Do NOT add new skills
-- Each skill must appear exactly once
-- Return ONLY valid JSON
-
-Skills:
-${skillChunk.join("\n")}
-`;
+// ---- READ SKILLS SNAPSHOT ----
+function readSkillsSnapshot() {
+  if (!fs.existsSync(SKILL_FILE)) return [];
+  return fs
+    .readFileSync(SKILL_FILE, "utf-8")
+    .split("\n")
+    .map(s => s.trim())
+    .filter(Boolean);
 }
 
-function splitArray(arr, size) {
-  const res = [];
-  for (let i = 0; i < arr.length; i += size) {
-    res.push(arr.slice(i, i + size));
-  }
-  return res;
-}
+
+
 
 // ---- MAIN ----
 async function run() {
-  const progressFile = 'progress.json';
-
-  let lastBatch = -1;
-  if (fs.existsSync(progressFile)) {
-    lastBatch = JSON.parse(fs.readFileSync(progressFile)).lastBatch;
+  /* ---------- LOCK ---------- */
+  const locked = await redis.set(LOCK_KEY, "1", { NX: true, EX: 600 });
+  if (!locked) {
+    console.log("⚠️ Another run is in progress. Exiting.");
+    return;
   }
 
-  console.log(`🔁 Resuming from batch ${lastBatch + 1}`);
+  let processedAll = true;
 
-  // load existing sets
-  function loadSet(file) {
-    return fs.existsSync(file) ? new Set(JSON.parse(fs.readFileSync(file))) : new Set();
-  }
+  try {
+    const skills = readSkillsSnapshot();
 
-  const technicalSet = loadSet('technical_skills.json');
-  const toolsSet = loadSet('tools_skills.json');
-  const softSet = loadSet('soft_skills.json');
-
-  const totalBatches = Math.ceil(skills.length / CHUNK_SIZE);
-
-  for (let batch = lastBatch + 1; batch < totalBatches; batch++) {
-    const start = batch * CHUNK_SIZE;
-    const chunk = skills.slice(start, start + CHUNK_SIZE);
-
-    console.log(`🔹 Processing batch ${batch} (${start} → ${start + chunk.length})`);
-
-    const microChunks = splitArray(chunk, 25);
-
-    for (const micro of microChunks) {
-      const { object: parsed } = await generateObject({
-        model: client("gpt-4o-mini"),
-
-        schema: SkillSchema,
-        prompt: buildPrompt(micro),
-        maxOutputTokens: 500,
-      });
-
-      for (const item of parsed.items) {
-        if (item.category === 'technical') technicalSet.add(item.skill);
-        if (item.category === 'tools') toolsSet.add(item.skill);
-        if (item.category === 'soft') softSet.add(item.skill);
-      }
+    if (!skills.length) {
+      console.log("ℹ️ No skills to process");
+      return;
     }
 
-    // save skill files
-    fs.writeFileSync('technical_skills.json', JSON.stringify([...technicalSet], null, 2));
-    fs.writeFileSync('tools_skills.json', JSON.stringify([...toolsSet], null, 2));
-    fs.writeFileSync('soft_skills.json', JSON.stringify([...softSet], null, 2));
+    const redisValue = await redis.get(REDIS_KEY);
+    const lastBatch = redisValue ? Number(redisValue) : -1;
 
-    // save progress
-    fs.writeFileSync(progressFile, JSON.stringify({ lastBatch: batch }));
+    console.log(`🔁 Resuming from batch ${lastBatch + 1}`);
 
-    console.log(`✅ Batch ${batch} saved`);
+    // ---- LOAD EXISTING OUTPUT ----
+    function loadSet(file) {
+      return fs.existsSync(file)
+        ? new Set(JSON.parse(fs.readFileSync(file)))
+        : new Set();
+    }
+
+    const technicalSet = loadSet("technical_skills.json");
+    const toolsSet = loadSet("tools_skills.json");
+    const softSet = loadSet("soft_skills.json");
+
+    const totalBatches = Math.ceil(skills.length / CHUNK_SIZE);
+
+    for (let batch = lastBatch + 1; batch < totalBatches; batch++) {
+      const start = batch * CHUNK_SIZE;
+      const chunk = skills.slice(start, start + CHUNK_SIZE);
+
+      console.log(`🔹 Batch ${batch}: ${chunk.length} skills`);
+
+      const microChunks = splitArray(chunk, 25) || [];
+   
+      console.log(`   - Split into ${microChunks.length} micro-chunks of 25 skills each`);
+        for (const micro of microChunks) {
+          console.log("   - Processing micro-chunk of size", micro.length);
+  if (!Array.isArray(micro) || micro.length === 0) continue;
+
+  await processMicroChunkWithFallback(
+    micro,
+    technicalSet,
+    toolsSet,
+    softSet
+  );
+}
+
+
+} 
+    }
+   catch (err) {
+    processedAll = false;
+    console.error("❌ Error during processing:", err);
+  } finally {
+    /* ---------- FINAL CLEANUP ---------- */
+    if (processedAll) {
+      console.log("🧹 All batches completed. Clearing state...");
+
+      // Clear the skill file (drain queue)
+      fs.writeFileSync(SKILL_FILE, "", "utf-8");
+
+      // Reset progress
+      await redis.del(REDIS_KEY);
+
+      console.log("♻️ File + Redis state reset");
+    }
+
+    // Release lock
+    await redis.del(LOCK_KEY);
   }
 
-  console.log('🎉 Skill classification completed!');
+  console.log("🎉 Run finished");
 }
 
 run();
