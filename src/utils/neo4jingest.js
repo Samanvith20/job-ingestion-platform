@@ -234,7 +234,7 @@ export async function runIngestion() {
   process.exit(0);
 }
 
-runIngestion().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// runIngestion().catch((err) => {
+//   console.error(err);
+//   process.exit(1);
+// });
