@@ -41,7 +41,7 @@ export async function fetchJobs(location, paginationLimit, resultsPerPage, baseS
     `${baseSearchUrl}?noOfResults=${resultsPerPage}` +
     `&urlType=search_by_location&searchType=adv` +
     `&location=${encodeURIComponent(location)}` +
-    `&sort=f&jobAge=1&pageNo=1&src=directSearch&latLong=`;
+    `&sort=f&jobAge=2&pageNo=1&src=directSearch&latLong=`;
 
   await locationDoneEvents.waitUntilReady();
 

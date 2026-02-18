@@ -34,6 +34,7 @@
     "https-proxy-agent": "^7.0.6",
     "mongoose": "^9.1.6",
     "neo4j-driver": "^6.0.1",
+    "node-cron": "^4.2.1",
     "openai": "^6.18.0",
     "redis": "^5.10.0",
     "winston": "^3.19.0",

@@ -22,7 +22,10 @@
   
   "DevOps Engineer": [
     "devops", "docker", "kubernetes", "k8s", "terraform", "ansible",
-    "jenkins", "ci/cd", "aws", "azure", "gcp", "gitlab", "github actions"
+    "jenkins", "ci/cd", "aws", "azure", "gcp", "gitlab", "github actions",
+    "devsecops", "monitoring", "prometheus", "grafana", "infrastructure as code",
+    "iac", "cloud infrastructure", "cloud automation", "configuration management"
+
   ],
   "Embedded / Firmware Engineer": [
   "embedded",

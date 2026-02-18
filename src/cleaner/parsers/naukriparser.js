@@ -1,4 +1,4 @@
-import { classifySkills, filterValidSkills, findRole } from "../../utils/ScraperUtilityfunctions.js";
+import { classifySkills, filterValidSkills, findRole, parsePostedDate } from "../../utils/ScraperUtilityfunctions.js";
 
 export default async function naukriParser(raw) {
   const skillsRaw = raw.tagsAndSkills
@@ -21,6 +21,8 @@ const validSkills = filterValidSkills(skillsRaw);
 
   // ✅ SALARY MAPPING
   const salary = raw.salaryDetail || {};
+   const postedAt = parsePostedDate(raw.createdDate);
+    const expiryAt = new Date(postedAt.getTime() + 90 * 86400000)
 
   return {
     job_id: raw.jobId,
@@ -48,5 +50,7 @@ const validSkills = filterValidSkills(skillsRaw);
     location: raw.placeholders?.find(p => p.type === "location")?.label,
 
     description: raw.jobDescription?.replace(/<[^>]*>/g, " "),
+     posted_at: postedAt,
+      expiry_at: expiryAt,
   };
 }

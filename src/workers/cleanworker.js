@@ -38,8 +38,7 @@ setScraperContext(JOB_CLEANER_WORKER);
         logger.info(`🚀 Worker started processing job ID: ${job.id}`);
 
         try {
-          const { id } = job.data;
-          console.log("id:;",id)
+          const { id } = job.data
 
           // Find the raw document
           const rawDoc = await RawJob.findById(id);

@@ -1,4 +1,6 @@
 import logger from '../logger/logger.js';
+import founditParser from './parsers/founditparser.js';
+import internshalaParser from './parsers/internshalaparser.js';
 
 import naukriparser from './parsers/naukriparser.js';
 
@@ -22,8 +24,16 @@ export async function Cleanerfunction(data, site) {
         logger.debug('➡️ Using Naukri parser');
         result =  naukriparser(data);
         break;
-
-     
+      
+      case 'internshala':
+        logger.debug('➡️ Using Internshala parser');
+        result =  internshalaParser(data);
+        break;
+       
+       case 'foundit':
+        logger.debug('➡️ Using Foundit parser');
+        result =  founditParser(data);
+        break;
 
       default:
         logger.error(`❌ Unknown site: ${site}`);
