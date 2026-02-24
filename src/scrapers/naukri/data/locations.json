@@ -3,6 +3,9 @@
   "locations": [
     "Bangalore",
      "Hyderabad",
+     "Pune",
+     "Mumbai",
+     "Chennai",
     "Delhi",
     "New Delhi",
     "Gurgaon",
@@ -43,5 +46,5 @@
 
   "baseSearchUrl": "https://www.naukri.com/jobapi/v3/search",
   "resultsPerPage": 20,
-  "paginationLimit": 400
+  "paginationLimit": 250
 }
