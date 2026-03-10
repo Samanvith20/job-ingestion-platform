@@ -21,7 +21,12 @@ async function main() {
     } catch (err) {
       logger.error('❌ Error running scrapers:', err.message);
     }
-  });
+  },
+  {
+    timezone: 'Asia/Kolkata',
+    
+  }
+);
   
 
   // push to neo4j every day at 6 clock in morning
