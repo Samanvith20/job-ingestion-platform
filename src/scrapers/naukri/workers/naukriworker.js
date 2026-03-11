@@ -1,62 +1,124 @@
 import { Worker } from 'bullmq';
 import { connection } from '../../../queue/connection.js';
-
 import { connectDB } from '../../../db/connection.js';
 import naukriLogger from '../naukrilogger.js';
 import { axiosInstance, delay, randomDelayMs } from '../../../utils/ScraperUtilityfunctions.js';
-
 import { NAUKRI_WORKER, PAGE_DELAY_MS } from '../data/constants.js';
-
 import { setScraperContext } from '../../../utils/sentryContext.js';
 import Sentry from '../../../sentry.js';
-
 import { locationDoneQueue, naukriQueue, preprocessQueue } from '../../../queue/queue.js';
 import { RawJob } from '../../../db/rawJobmodel.js';
+import { chromium } from 'playwright';
 
-/** 
- * Initialize the database connection, fetch initial Naukri homepage cookies, and start the BullMQ worker that processes Naukri HTTP fetch jobs.
- *
- * The worker performs HTTP requests for configured pages, maintains per-location daily metrics, handles 403 and CAPTCHA retry/backoff logic, parses job listings from responses, persists raw job records, enqueues preprocessing tasks, and advances pagination up to the provided limit while logging API request details.
- */
+// ─── Shared state ─────────────────────────────────────────────────────────────
+let naukriCookies = '';
+let cachedNkParam = null;
+let cachedBrowserCookies = '';
+
+// ─── Homepage cookies ──────────────────────────────────────────────────────────
+async function fetchHomepageCookies() {
+  try {
+    const res = await axiosInstance.get('https://www.naukri.com/', {
+      headers: {
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'accept-language': 'en-US,en;q=0.9',
+        'cache-control': 'no-cache',
+      },
+      validateStatus: () => true,
+    });
+    const cookies = res.headers['set-cookie'] || [];
+    if (cookies.length > 0) {
+      naukriCookies = cookies.map((c) => c.split(';')[0]).join('; ');
+      naukriLogger.info(`✅ Fetched homepage cookies: ${cookies.length} set`);
+    } else {
+      naukriLogger.warn('⚠️ No cookies returned from homepage');
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    naukriLogger.error('⚠️ fetchHomepageCookies failed:', err.message);
+  }
+}
+
+// ─── Browser fetch — only triggered on 406 ────────────────────────────────────
+async function fetchNkParamFromBrowser(location) {
+  naukriLogger.info(`🚀 Browser launching to refresh nkparam [${location}]`);
+
+  const browser = await chromium.launch({
+    headless: false, // xvfb-run handles display on GCP
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+  });
+
+  const context = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    viewport: { width: 1280, height: 800 },
+    extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' },
+  });
+
+  const page = await context.newPage();
+  let capturedNkParam = null;
+
+  page.on('request', (request) => {
+    if (request.url().includes('jobapi/v3/search')) {
+      const nkparam = request.headers()['nkparam'];
+      if (nkparam) {
+        capturedNkParam = nkparam;
+        naukriLogger.info('✅ nkparam captured');
+      }
+    }
+  });
+
+  try {
+    await page.goto('https://www.naukri.com/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForTimeout(2000);
+
+    await page.goto(`https://www.naukri.com/${location.toLowerCase()}-jobs`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    });
+
+    await page.waitForRequest(
+      (req) => req.url().includes('jobapi/v3/search'),
+      { timeout: 20000 }
+    ).catch(() => naukriLogger.warn('⚠️ jobapi request not seen in 20s'));
+
+    await page.waitForTimeout(1000);
+
+    const cookies = await context.cookies();
+    cachedBrowserCookies = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+    naukriLogger.info(`🍪 Browser cookies captured: ${cookies.length}`);
+
+  } finally {
+    await browser.close();
+  }
+
+  if (!capturedNkParam) {
+    throw new Error(`nkparam not captured for location: ${location}`);
+  }
+
+  cachedNkParam = capturedNkParam;
+  naukriLogger.info('✅ nkparam cached successfully');
+
+  return { nkparam: capturedNkParam, cookies: cachedBrowserCookies };
+}
+
+// ─── Worker ────────────────────────────────────────────────────────────────────
 export async function naukriWorker() {
   setScraperContext(NAUKRI_WORKER);
   await connectDB();
   naukriLogger.info('Connected to MongoDB & worker started 🚀');
 
-  let naukriCookies = '';
-
-  async function fetchHomepageCookies() {
-    try {
-      const homeResponse = await axiosInstance.get('https://www.naukri.com/', {
-        validateStatus: () => true,
-      });
-      const cookies = homeResponse.headers['set-cookie'] || [];
-      if (cookies.length > 0) {
-        naukriCookies = cookies.join('; ');
-        naukriLogger.info(`✅ Fetched Naukri homepage cookies: ${cookies.length} cookies set`);
-      } else {
-        naukriLogger.warn('⚠️ No cookies returned from Naukri homepage');
-      }
-    } catch (err) {
-      Sentry.captureException(err);
-      naukriLogger.error('⚠️ Failed to fetch Naukri homepage cookies:', err.message);
-    }
-  }
-
   function getTodayKey(location) {
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    return `${location}-${today}`;
+    return `${location}-${new Date().toISOString().slice(0, 10)}`;
   }
 
-  await fetchHomepageCookies();
   const metricsByLocation = new Map();
 
   function getMetrics(location) {
     const key = getTodayKey(location);
-
     if (!metricsByLocation.has(key)) {
       metricsByLocation.set(key, {
-        date: key.split('-').slice(-3).join('-'), // 2025-12-06
+        date: new Date().toISOString().slice(0, 10),
         location,
         totalRequests: 0,
         failedRequests: 0,
@@ -64,10 +126,10 @@ export async function naukriWorker() {
         duplicateJobs: 0,
       });
     }
-
     return metricsByLocation.get(key);
   }
 
+  await fetchHomepageCookies();
   let lastCookieRefresh = Date.now();
 
   new Worker(
@@ -80,14 +142,14 @@ export async function naukriWorker() {
         page,
         paginationLimit,
         _403Retries = 0,
+        _406Retries = 0,
         captchaRetries = 0,
       } = job.data;
 
       const metrics = getMetrics(location);
       metrics.totalRequests++;
-  
+
       try {
-        naukriLogger.info(`➡️ Calling Page ${page} for ${location}`);
         naukriLogger.info(`➡️ URL: ${url}`);
 
         const rDelay = randomDelayMs(1500, 3000);
@@ -98,113 +160,118 @@ export async function naukriWorker() {
           lastCookieRefresh = Date.now();
         }
 
-        const response = await axiosInstance.get(url, {
+        // Use browser cookies if we have them (post-406 refresh), else homepage cookies
+        const activeCookies = cachedBrowserCookies || naukriCookies;
+        const requestConfig = {
           headers: {
             ...headers,
-            ...(naukriCookies && { Cookie: naukriCookies }),
+            ...(cachedNkParam && { nkparam: cachedNkParam }),
+            Cookie: activeCookies,
           },
           validateStatus: () => true,
-        });
+        };
 
+        const response = await axiosInstance.get(url, requestConfig);
         naukriLogger.info(`⚡ Status: ${response.status}`);
 
-        // =============== ❌ HANDLE 403 BEFORE JSON PARSE ============
-        if (response.status === 403) {
+        // ── 406: nkparam invalid → refresh via browser ────────────────────────
+        if (response.status === 406) {
           metrics.failedRequests++;
 
-          // refresh cookies once after first 2 retries to attempt session recovery
-          if (_403Retries === 2) {
-            naukriLogger.info('🔁 Refreshing homepage cookies due to repeated 403s');
-            await fetchHomepageCookies();
-          }
+          if (_406Retries < 3) {
+            naukriLogger.warn(`⚠️ 406 on page ${page} — refreshing nkparam (retry ${_406Retries + 1}/3)`);
 
-          if (_403Retries < 4) {
-            naukriLogger.info(`⛔ 403 on page ${page} — retry ${_403Retries + 1}/4`);
-
-            // exponential backoff before re-adding the same page
-            const backoffMs = 1000 * Math.pow(2, _403Retries); // 1s,2s,4s,8s
-            await delay(backoffMs + randomDelayMs(500, 1500));
+            await fetchNkParamFromBrowser(location); // updates cachedNkParam + cachedBrowserCookies
 
             await naukriQueue.add('fetch', {
-              url,
-              headers,
-              location,
-              page,
-              paginationLimit,
-              _403Retries: _403Retries + 1,
+              ...job.data,
+              _406Retries: _406Retries + 1,
             });
-
             return;
           }
 
-          // MAX RETRIES REACHED → move to next page
-          naukriLogger.info(`⏭️ 403 retries exhausted for page ${page}. Moving to page ${page + 1}`);
-
+          naukriLogger.warn(`⏭️ 406 retries exhausted for page ${page}, skipping`);
           const nextPage = page + 1;
-
           if (nextPage <= paginationLimit) {
-            const nextUrl = url.replace(`pageNo=${page}`, `pageNo=${nextPage}`);
-
             await naukriQueue.add('fetch', {
-              url: nextUrl,
-              headers,
-              location,
-              page: nextPage,
-              paginationLimit,
+              url: url.replace(`pageNo=${page}`, `pageNo=${nextPage}`),
+              headers, location, page: nextPage, paginationLimit,
             });
-
-            naukriLogger.info(`➡️ Queued next page ${nextPage}`);
           } else {
             naukriLogger.info(`📊 ${location} metrics: ${JSON.stringify(metrics)}`);
-           await locationDoneQueue.add('done', { location });
-            return
+            await locationDoneQueue.add('done', { location });
           }
-
-          return; // DO NOT THROW
+          return;
         }
 
+        // ── 403: session blocked → refresh homepage cookies ───────────────────
+        if (response.status === 403) {
+          metrics.failedRequests++;
+
+          if (_403Retries === 2) {
+            await fetchHomepageCookies();
+            lastCookieRefresh = Date.now();
+          }
+
+          if (_403Retries < 4) {
+            naukriLogger.warn(`⛔ 403 on page ${page} — retry ${_403Retries + 1}/4`);
+            const backoffMs = 1000 * Math.pow(2, _403Retries);
+            await delay(backoffMs + randomDelayMs(500, 1500));
+
+            await naukriQueue.add('fetch', {
+              url, headers, location, page, paginationLimit,
+              _403Retries: _403Retries + 1,
+            });
+            return;
+          }
+
+          naukriLogger.warn(`⏭️ 403 retries exhausted for page ${page}, skipping`);
+          const nextPage = page + 1;
+          if (nextPage <= paginationLimit) {
+            await naukriQueue.add('fetch', {
+              url: url.replace(`pageNo=${page}`, `pageNo=${nextPage}`),
+              headers, location, page: nextPage, paginationLimit,
+            });
+          } else {
+            naukriLogger.info(`📊 ${location} metrics: ${JSON.stringify(metrics)}`);
+            await locationDoneQueue.add('done', { location });
+          }
+          return;
+        }
+
+        // ── CAPTCHA / non-JSON response ────────────────────────────────────────
         const data = response.data;
         if (typeof data === 'string') {
           if (data.includes('captcha') || data.includes('cf-challenge')) {
             if (captchaRetries < 4) {
               await delay(2000);
-              return naukriQueue.add('fetch', { ...job.data, captchaRetries: captchaRetries + 1 });
+              await naukriQueue.add('fetch', { ...job.data, captchaRetries: captchaRetries + 1 });
+              return;
             }
-
             naukriLogger.warn(`❌ CAPTCHA retries exceeded for page ${page}`);
-
-            const nextPage = page + 1;
-            if (nextPage <= paginationLimit) {
-              const nextUrl = url.replace(`pageNo=${page}`, `pageNo=${nextPage}`);
-              await naukriQueue.add('fetch', {
-                url: nextUrl,
-                headers,
-                location,
-                page: nextPage,
-                paginationLimit,
-              });
-            }
-
-            return;
+          } else {
+            naukriLogger.error(`❌ Expected JSON but got string on page ${page}`);
           }
 
-          naukriLogger.error(`❌ Expected JSON but got string. Skipping page ${page}`);
+          const nextPage = page + 1;
+          if (nextPage <= paginationLimit) {
+            await naukriQueue.add('fetch', {
+              url: url.replace(`pageNo=${page}`, `pageNo=${nextPage}`),
+              headers, location, page: nextPage, paginationLimit,
+            });
+          }
           return;
         }
 
-        // ✅ THIS IS THE REAL JSON
+        // ── Process jobs ───────────────────────────────────────────────────────
         const jobs = data.jobDetails || [];
 
-       
-
         if (jobs.length === 0) {
-          naukriLogger.warn(`⚠️ No jobs in response for page ${page}`);
+          naukriLogger.warn(`⚠️ No jobs on page ${page} for ${location}`);
           naukriLogger.info(`📊 ${location} metrics: ${JSON.stringify(metrics)}`);
- await locationDoneQueue.add('done', { location });
-  
+          await locationDoneQueue.add('done', { location });
           return;
         }
-        //console.log(`✅ Fetched ${jobs.length} jobs from page ${page} for ${location}`);
 
         for (const jobItem of jobs) {
           try {
@@ -214,55 +281,41 @@ export async function naukriWorker() {
               externalId: jobItem.jobId,
               status: 'queued',
             });
-
             metrics.insertedJobs++;
             await preprocessQueue.add('raw-job', { id: doc._id });
           } catch (err) {
             if (err.code === 11000) {
               metrics.duplicateJobs++;
-              continue; // ✅ skip duplicate, keep looping
+              continue;
             }
-
             Sentry.captureException(err);
-            naukriLogger.error(`❌ Failed to insert job from page ${page}:`, err.message);
-            continue; // ✅ never return
+            naukriLogger.error(`❌ Failed to insert job on page ${page}:`, err.message);
           }
         }
 
-        // NEXT PAGE
+        // ── Next page ──────────────────────────────────────────────────────────
         const nextPage = page + 1;
-
         if (nextPage <= paginationLimit) {
-          const nextUrl = url.replace(`pageNo=${page}`, `pageNo=${nextPage}`);
-
           await naukriQueue.add('fetch', {
-            url: nextUrl,
-            headers,
-            location,
-            page: nextPage,
-            paginationLimit,
+            url: url.replace(`pageNo=${page}`, `pageNo=${nextPage}`),
+            headers, location, page: nextPage, paginationLimit,
           });
-
-          naukriLogger.info(`➡️ Queued next page ${nextPage}`);
+          naukriLogger.info(`➡️ Queued page ${nextPage}`);
         } else {
           naukriLogger.info(`📊 ${location} metrics: ${JSON.stringify(metrics)}`);
           await locationDoneQueue.add('done', { location });
-          return;
         }
+
       } catch (err) {
         metrics.failedRequests++;
         Sentry.captureException(err);
-
-        throw err; // BullMQ normal retry for non-403
+        throw err;
       }
     },
     {
       connection,
       concurrency: 1,
-      limiter: {
-        max: 1,
-        duration: 2000,
-      },
+      limiter: { max: 1, duration: 2000 },
     }
   );
 }

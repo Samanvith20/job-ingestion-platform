@@ -11,9 +11,11 @@ module.exports = {
     {
       name: 'naukri-worker',
       script: 'src/scrapers/naukri/workers/naukriworker.js',
-      instances: 2,
-      exec_mode: 'cluster',
-      max_memory_restart: '500M',
+      instances: 1,          // ← must be 1, browser + shared cache can't be clustered
+      exec_mode: 'fork',     // ← fork not cluster
+      interpreter: 'bash',
+      interpreter_args: '-c "xvfb-run -a node src/scrapers/naukri/workers/naukriworker.js"',
+      max_memory_restart: '800M', // ← increase, browser takes more memory
     },
     {
       name: 'location-done-worker',
