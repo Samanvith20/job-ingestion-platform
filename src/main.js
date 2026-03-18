@@ -2,10 +2,10 @@ import cron from 'node-cron';
 import { founditScraper } from './scrapers/foundit/index.js';
 import { internshalajobsScraper } from './scrapers/internshala/index.js';
 import { naukriScraper } from './scrapers/naukri/index.js';
-
 import { runIngestion } from './utils/neo4jingest.js';
 import { runPostProcessing } from './utils/postprocessing.js';
 import logger from './logger/logger.js';
+import { syncMongoJobsToPostgres } from './utils/postgressingest.js';
 async function main() {
   logger.info('main is running successfully');
 
@@ -37,6 +37,7 @@ async function main() {
       logger.info(`   Time: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
       try {
         await runIngestion();
+        await syncMongoJobsToPostgres()
         logger.info('✅ [INGESTION] Completed successfully\n');
       } catch (err) {
     logger.error('❌ [INGESTION] Failed:', err.message);
