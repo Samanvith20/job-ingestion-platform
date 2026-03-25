@@ -45,6 +45,44 @@ async function createRoleSkillLinks() {
     await session.close();
   }
 }
+async function calculateRoleStats() {
+  const session = driver.session({ defaultAccessMode: neo4j.session.WRITE });
+
+  try {
+    console.log('3️⃣ Calculating RoleStats...');
+
+    const result = await session.run(`
+      MATCH (j:Job)-[:MAPS_TO]->(r:Role)
+      OPTIONAL MATCH (j)-[:POSTED_BY]->(c:Company)
+      OPTIONAL MATCH (j)-[:OFFERS_SALARY]->(sal:Salary)
+      WHERE j.expires_at > datetime()
+
+      WITH r,
+           avg(sal.min) AS avgMin,
+           avg(sal.max) AS avgMax,
+           collect(DISTINCT c.name)[0..10] AS topCompanies
+
+      MERGE (rs:RoleStats {role: r.role_title})
+      SET rs.avgMin = avgMin,
+          rs.avgMax = avgMax,
+          rs.topCompanies = topCompanies,
+          rs.updatedAt = datetime()
+
+      RETURN count(rs) AS rolesUpdated
+    `);
+
+    const count = result.records[0].get('rolesUpdated').toNumber();
+    console.log(`✅ Updated ${count} RoleStats\n`);
+
+    return count;
+
+  } catch (err) {
+    console.error('❌ RoleStats failed:', err.message);
+    throw err;
+  } finally {
+    await session.close();
+  }
+}
 
 async function calculateSkillDemand() {
   const session = driver.session({ defaultAccessMode: neo4j.session.WRITE });
@@ -93,6 +131,32 @@ async function calculateSkillDemand() {
     await session.close();
   }
 }
+async function updateHoursOld() {
+  const session = driver.session({ defaultAccessMode: neo4j.session.WRITE });
+  
+  try {
+    console.log('3️⃣ Updating hours_old on all active jobs...');
+    
+    const result = await session.run(`
+      MATCH (j:Job)
+      WHERE j.posted_at IS NOT NULL
+        AND j.expires_at > datetime()
+      SET j.hours_old = duration.between(datetime(j.posted_at), datetime()).hours
+      RETURN count(j) AS updated
+    `);
+    
+    const count = result.records[0].get('updated').toNumber();
+    console.log(`✅ Updated hours_old on ${count} active jobs\n`);
+    
+    return count;
+    
+  } catch (err) {
+    console.error('❌ Failed:', err.message);
+    throw err;
+  } finally {
+    await session.close();
+  }
+}
 
 export async function runPostProcessing() {
   console.log("\n🔧 Running Post-Processing...\n");
@@ -101,20 +165,25 @@ export async function runPostProcessing() {
   try {
     const roleSkillLinks = await createRoleSkillLinks();
     const skillsAnalyzed = await calculateSkillDemand();
-    
+    const roleStats      = await calculateRoleStats(); // ✅ NEW
+    const hoursOldUpdated = await updateHoursOld();
+
     console.log("=".repeat(60));
     console.log("\n✅ POST-PROCESSING COMPLETED!");
     console.log(`   - Role-Skill links: ${roleSkillLinks}`);
-    console.log(`   - Skills analyzed: ${skillsAnalyzed}\n`);
+    console.log(`   - Skills analyzed: ${skillsAnalyzed}`);
+    console.log(`   - RoleStats updated: ${roleStats}\n`);
+        console.log(`   - hours_old updated: ${hoursOldUpdated}\n`); // ← and this
     
-    // Verify
     const session = driver.session();
     const verifyResult = await session.run(`
       MATCH (r:Role)-[:REQUIRES]->(s:Skill)
       RETURN count(*) AS totalLinks
     `);
+
     const total = verifyResult.records[0].get('totalLinks').toNumber();
     console.log(`✅ Verification: ${total} total Role-Skill links exist\n`);
+    
     await session.close();
     
   } catch (err) {

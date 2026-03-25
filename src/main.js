@@ -1,70 +1,119 @@
-import cron from 'node-cron';
-import { founditScraper } from './scrapers/foundit/index.js';
-import { internshalajobsScraper } from './scrapers/internshala/index.js';
-import { naukriScraper } from './scrapers/naukri/index.js';
-import { runIngestion } from './utils/neo4jingest.js';
-import { runPostProcessing } from './utils/postprocessing.js';
-import logger from './logger/logger.js';
-import { syncMongoJobsToPostgres } from './utils/postgressingest.js';
-async function main() {
-  logger.info('main is running successfully');
 
-  // run at night 12 clock midnight everyday
-  cron.schedule('0 0 * * *', async () => {
-    logger.info('\n🚀 Running Scrapers...');
-    logger.info(`   Time: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
-    try {
-      await founditScraper();
-      await internshalajobsScraper();
-      await naukriScraper();
-      logger.info('✅ Scrapers completed successfully\n');
-    } catch (err) {
-      logger.error('❌ Error running scrapers:', err.message);
-    }
-  },
-  {
-    timezone: 'Asia/Kolkata',
-    
-  }
-);
-  
 
-  // push to neo4j every day at 6 clock in morning
-  cron.schedule(
-    '0 6 * * *',
-    async () => {
-      logger.info('\n🚀 [INGESTION] Running Neo4j ingestion...');
-      logger.info(`   Time: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
-      try {
-        await runIngestion();
-        await syncMongoJobsToPostgres()
-        logger.info('✅ [INGESTION] Completed successfully\n');
-      } catch (err) {
-    logger.error('❌ [INGESTION] Failed:', err.message);
-      }
-    },
-    {
-      timezone: 'Asia/Kolkata',
-    }
-  );
+import cron from "node-cron";
+import { founditScraper } from "./scrapers/foundit/index.js";
+//import { internshalajobsScraper } from "./scrapers/internshala/index.js";
+import { naukriScraper } from "./scrapers/naukri/index.js";
+import { runIngestion } from "./utils/neo4jingest.js";
+import { runPostProcessing } from "./utils/postprocessing.js";
+import { syncMongoJobsToPostgres } from "./utils/postgressingest.js";
+import logger from "./logger/logger.js";
+import redis from "./config/redis.js";
+import crypto from "crypto";
 
-  cron.schedule(
-    '0 8 * * *',
-    async () => {
-      logger.info('\n🔧 [POST-PROCESS] Creating enhanced relationships...');
-      logger.info(`   Time: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
+async function acquireLock(key, ttl = 60 * 60) {
+  const value = crypto.randomUUID();
 
-      try {
-        await runPostProcessing();
+  const result = await redis.set(key, value, "NX", "EX", ttl);
 
-        logger.info('✅ [POST-PROCESS] Completed successfully\n');
-      } catch (err) {
-        logger.error('❌ [POST-PROCESS] Failed:', err.message);
-      }
-    },
-    {
-      timezone: 'Asia/Kolkata',
-    }
-  );
+  return result === "OK" ? value : null;
 }
-main();
+
+async function releaseLock(key, value) {
+  const current = await redis.get(key);
+
+  if (current === value) {
+    await redis.del(key);
+  }
+}
+
+// ── Single pipeline: scrape → ingest → sync → post-process ───────────────────
+// All steps run sequentially so each depends on the previous completing.
+// Errors in one step are logged but don't crash the process —
+// the next cron cycle will retry everything from scratch.
+async function runPipeline(cycleLabel) {
+  const lockKey = `lock:${cycleLabel}`;
+  const lockValue = await acquireLock(lockKey, 7200);
+
+if (!lockValue) {
+  logger.warn(`⚠️ Skipping ${cycleLabel} — another instance running`);
+  return;
+}
+
+
+  logger.info(`\n${"=".repeat(60)}`);
+  logger.info(`🚀 [${cycleLabel}] Pipeline starting...`);
+  logger.info(`   Time: ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`);
+  logger.info("=".repeat(60));
+
+  // ── Step 1: Scrape ──────────────────────────────────────────────────────
+  try {
+    logger.info(`\n[${cycleLabel}] Step 1/4 — Scraping...`);
+    await Promise.all([
+  founditScraper(),
+  naukriScraper()
+]);
+    logger.info(`✅ [${cycleLabel}] Scraping done`);
+  } catch (err) {
+    logger.error(`❌ [${cycleLabel}] Scraping failed: ${err.message}`);
+    // Don't return — ingestion can still process previously uningested jobs
+  }
+
+  // ── Step 2: Neo4j ingestion ─────────────────────────────────────────────
+  try {
+    logger.info(`\n[${cycleLabel}] Step 2/4 — Neo4j ingestion...`);
+    await runIngestion();
+    logger.info(`✅ [${cycleLabel}] Neo4j ingestion done`);
+  } catch (err) {
+    logger.error(`❌ [${cycleLabel}] Neo4j ingestion failed: ${err.message}`);
+    return; // Post-processing on stale data is pointless, skip rest
+  }
+
+  // ── Step 3: Postgres sync ───────────────────────────────────────────────
+  try {
+    logger.info(`\n[${cycleLabel}] Step 3/4 — Postgres sync...`);
+    await syncMongoJobsToPostgres();
+    logger.info(`✅ [${cycleLabel}] Postgres sync done`);
+  } catch (err) {
+    logger.error(`❌ [${cycleLabel}] Postgres sync failed: ${err.message}`);
+    // Non-fatal — continue to post-processing
+  }
+
+  // ── Step 4: Post-processing ─────────────────────────────────────────────
+  try {
+    logger.info(`\n[${cycleLabel}] Step 4/4 — Post-processing...`);
+    await runPostProcessing();
+    logger.info(`✅ [${cycleLabel}] Post-processing done`);
+  } catch (err) {
+    logger.error(`❌ [${cycleLabel}] Post-processing failed: ${err.message}`);
+  }
+  finally {
+    await releaseLock(lockKey);
+  }
+
+
+  logger.info(`\n✅ [${cycleLabel}] Full pipeline completed`);
+  logger.info(`   Time: ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}\n`);
+}
+
+// ── Schedule: 3x daily ────────────────────────────────────────────────────────
+// 06:00 IST — morning cycle      (fresh jobs for the day)
+// 13:00 IST — afternoon cycle    (midday postings)
+// 21:00 IST — night cycle        (end of day postings + cleanup)
+const CRON_OPTIONS = { timezone: "Asia/Kolkata" };
+
+cron.schedule("0 6  * * *", async() => await runPipeline("MORNING"),   CRON_OPTIONS);
+cron.schedule("0 13 * * *", async() => await runPipeline("AFTERNOON"), CRON_OPTIONS);
+cron.schedule("0 19 * * *", async() => await runPipeline("NIGHT"),     CRON_OPTIONS);
+
+logger.info("✅ Cron scheduler started — pipelines at 06:00, 13:00, 21:00 IST");
+
+// ── Graceful shutdown ─────────────────────────────────────────────────────────
+process.on("SIGTERM", () => {
+  logger.info("SIGTERM received — shutting down scheduler");
+  process.exit(0);
+});
+process.on("SIGINT", () => {
+  logger.info("SIGINT received — shutting down scheduler");
+  process.exit(0);
+});
