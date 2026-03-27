@@ -272,6 +272,7 @@ export async function naukriWorker() {
           await locationDoneQueue.add('done', { location });
           return;
         }
+        let consecutiveDuplicates = 0;
 
         for (const jobItem of jobs) {
           try {
@@ -282,13 +283,22 @@ export async function naukriWorker() {
               status: 'queued',
             });
             metrics.insertedJobs++;
+                consecutiveDuplicates = 0;
             await preprocessQueue.add('raw-job', { id: doc._id });
           } catch (err) {
             if (err.code === 11000) {
-              metrics.duplicateJobs++;
-              continue;
-            }
-            Sentry.captureException(err);
+      metrics.duplicateJobs++;
+      consecutiveDuplicates++;
+
+      if (consecutiveDuplicates >= 50) {
+        naukriLogger.info(`🛑 Duplicate streak hit → stopping at page ${page}`);
+        await locationDoneQueue.add('done', { location });
+        return;
+      }
+
+      continue;
+    }
+            //Sentry.captureException(err);
             naukriLogger.error(`❌ Failed to insert job on page ${page}:`, err.message);
           }
         }

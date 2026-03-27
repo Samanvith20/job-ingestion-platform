@@ -1,7 +1,7 @@
 import { Queue } from 'bullmq';
 import { connection } from '../queue/connection.js';
 
-const queue = new Queue('naukri-http-requests', { connection});
+const queue = new Queue('raw-job-queue', { connection});
 
 /**
  * Purges the 'naukri-http-requests' queue and terminates the process.

@@ -10,6 +10,7 @@ import { syncMongoJobsToPostgres } from "./utils/postgressingest.js";
 import logger from "./logger/logger.js";
 import redis from "./config/redis.js";
 import crypto from "crypto";
+import { instahyreScraper } from "./scrapers/instahyre/index.js";
 
 async function acquireLock(key, ttl = 60 * 60) {
   const value = crypto.randomUUID();
@@ -26,6 +27,20 @@ async function releaseLock(key, value) {
     await redis.del(key);
   }
 }
+
+// scraperConfig.js
+
+ const SCRAPER_CONFIG = {
+  MORNING: ["foundit", "naukri"],
+  AFTERNOON: ["foundit", "naukri"],
+  NIGHT: ["foundit", "naukri", "instahyre"], // 👈 only here
+};
+
+export const SCRAPERS = {
+  foundit: founditScraper,
+  naukri: naukriScraper,
+  instahyre: instahyreScraper,
+};
 
 // ── Single pipeline: scrape → ingest → sync → post-process ───────────────────
 // All steps run sequentially so each depends on the previous completing.
@@ -48,11 +63,13 @@ if (!lockValue) {
 
   // ── Step 1: Scrape ──────────────────────────────────────────────────────
   try {
-    logger.info(`\n[${cycleLabel}] Step 1/4 — Scraping...`);
-    await Promise.all([
-  founditScraper(),
-  naukriScraper()
-]);
+    const scrapersToRun = SCRAPER_CONFIG[cycleLabel] || [];
+
+logger.info(`Running scrapers: ${scrapersToRun.join(", ")}`);
+
+await Promise.all(
+  scrapersToRun.map((name) => SCRAPERS[name]())
+);
     logger.info(`✅ [${cycleLabel}] Scraping done`);
   } catch (err) {
     logger.error(`❌ [${cycleLabel}] Scraping failed: ${err.message}`);
@@ -88,7 +105,7 @@ if (!lockValue) {
     logger.error(`❌ [${cycleLabel}] Post-processing failed: ${err.message}`);
   }
   finally {
-    await releaseLock(lockKey);
+     await releaseLock(lockKey, lockValue);
   }
 
 

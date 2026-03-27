@@ -29,6 +29,11 @@ function getCanonicalSkills(job) {
     new Set((job.skills?.technical || []).map((s) => s.trim().toLowerCase()).filter(Boolean))
   );
 }
+function getCanonicalTools(job) {
+  return Array.from(
+    new Set((job.skills?.tools || []).map((t) => t.trim().toLowerCase()).filter(Boolean))
+  );
+}
 function assertNeo4jSafe(name, value) {
   const isPrimitive =
     value === null ||
@@ -120,6 +125,11 @@ const CYPER_QUERY = `
           MERGE (j)-[:REQUIRES]->(s)
         )
 
+          FOREACH (tool IN $tools |
+  MERGE (t:Tool {name: tool})
+  MERGE (j)-[:USES_TOOL]->(t)
+)
+
         // ---------------- SALARY (JOB LEVEL) ----------------
         FOREACH (_ IN CASE WHEN $salary_min IS NOT NULL THEN [1] ELSE [] END |
          MERGE (sal:Salary {min: $salary_min, max: $salary_max})
@@ -142,7 +152,7 @@ console.log("jobs inegsting into neo4j")
     for (const job of jobs) {
       const skills = getCanonicalSkills(job).filter(s => typeof s === 'string');
 
-
+const tools = getCanonicalTools(job).filter(t => typeof t === 'string');
       const params = {
         job_id: normalizePrimitive(job.job_id),
         title: normalizePrimitive(job.job_title),
@@ -168,6 +178,7 @@ console.log("jobs inegsting into neo4j")
         extracted_by: normalizePrimitive(job.extracted_by),
         is_published: normalizePrimitive(job.is_published),
         skills,
+        tools,
         salary_min: normalizePrimitive(job.salary_min),
         salary_max: normalizePrimitive(job.salary_max),
         salary_currency: normalizePrimitive(job.salary_currency || 'INR'),

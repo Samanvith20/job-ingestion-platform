@@ -32,7 +32,6 @@ export async function fetchJobs() {
   for (let page = 0; page < MAX_PAGE_NUMBER; page++) {
     const start = page * PAGE_LIMIT;
     let response = null;
-  
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
@@ -73,7 +72,6 @@ export async function fetchJobs() {
       }
     }
 
-
     //------------------------------------------------
     // ❗ If all retries failed → skip page, continue
     //------------------------------------------------
@@ -103,7 +101,7 @@ export async function fetchJobs() {
       founditlogger.info('🛑 No more jobs returned → Stopping pagination.');
       break;
     }
-
+    let consecutiveDuplicates = 0;
     //-----------------------------------------
     // 💾 Save each job individually
     //-----------------------------------------
@@ -124,20 +122,29 @@ export async function fetchJobs() {
         await preprocessQueue.add('raw-job', { id: doc._id });
 
         totalJobs++;
+        consecutiveDuplicates = 0;
       } catch (err) {
-        Sentry.captureException(err);
+        //Sentry.captureException(err);
         if (err.code === 11000) {
           duplicateJobs++;
-          // founditlogger.warn('⚠️ Duplicate job → Skipping');
-        } else {
-          totalErrors++;
-          founditlogger.error(`❌ DB Insert Error: ${err.message}`);
+          consecutiveDuplicates++;
+
+          // 🔥 STOP HERE
+          if (consecutiveDuplicates >= 0) {
+            founditlogger.info(`🛑 Duplicate streak hit → stopping at page ${page + 1}`);
+            return { totalJobs, duplicateJobs, totalErrors };
+          }
+
+          continue;
         }
+
+        totalErrors++;
+        founditlogger.error(`❌ DB Insert Error: ${err.message}`);
       }
     }
-
-    await delay(PAGE_DELAY_MS);
   }
+
+  await delay(PAGE_DELAY_MS);
 
   //----------------------------------------------------
   // 🟢 Final result returned to cron or main handler
