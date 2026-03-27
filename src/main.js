@@ -12,6 +12,9 @@ import redis from "./config/redis.js";
 import crypto from "crypto";
 import { instahyreScraper } from "./scrapers/instahyre/index.js";
 import { startHiristScraper } from "./scrapers/hirist/index.js";
+import { getSourceCounts } from "./utils/getSourceCounts.js";
+import { sendPipelineReport } from "./utils/sendMail.js";
+
 
 async function acquireLock(key, ttl = 60 * 60) {
   const value = crypto.randomUUID();
@@ -43,6 +46,24 @@ export const SCRAPERS = {
   instahyre: instahyreScraper,
   hirist:startHiristScraper
 };
+function getCycleTimeRange(cycleLabel) {
+  const now = new Date();
+
+  let startTime;
+
+  if (cycleLabel === "MORNING") {
+    startTime = new Date(now.setHours(0, 0, 0, 0)); // midnight → 6am
+  } else if (cycleLabel === "AFTERNOON") {
+    startTime = new Date(now.setHours(6, 0, 0, 0));
+  } else {
+    startTime = new Date(now.setHours(13, 0, 0, 0));
+  }
+
+  return {
+    startTime,
+    endTime: new Date()
+  };
+}
 
 // ── Single pipeline: scrape → ingest → sync → post-process ───────────────────
 // All steps run sequentially so each depends on the previous completing.
@@ -106,7 +127,25 @@ await Promise.all(
   } catch (err) {
     logger.error(`❌ [${cycleLabel}] Post-processing failed: ${err.message}`);
   }
+  try {
+  const { startTime, endTime } = getCycleTimeRange(cycleLabel);
+
+  const sourceCounts = await getSourceCounts({ startTime, endTime });
+
+  const totalJobs = Object.values(sourceCounts).reduce((a, b) => a + b, 0);
+
+  await sendPipelineReport({
+    cycle: cycleLabel,
+    totalJobs,
+    sourceCounts
+  });
+
+  logger.info(`📩 Email report sent for ${cycleLabel}`);
+} catch (err) {
+  logger.error(`❌ Email sending failed: ${err.message}`);
+}
   finally {
+   
      await releaseLock(lockKey, lockValue);
   }
 
@@ -132,7 +171,8 @@ process.on("SIGTERM", () => {
   logger.info("SIGTERM received — shutting down scheduler");
   process.exit(0);
 });
-process.on("SIGINT", () => {
+process.on("SIGINT", () => { 
+  
   logger.info("SIGINT received — shutting down scheduler");
   process.exit(0);
 });

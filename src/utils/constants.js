@@ -31,3 +31,7 @@ export const NEO4J_URI = process.env.NEO4J_URI || '';
 export const NEO4J_USER = process.env.NEO4J_USERNAME || '';
 export const NEO4J_PASSWORD = process.env.NEO4J_PASSWORD || '';
 export const JOB_CLEANER_WORKER = "JOB_CLEANER_WORKER";
+export const SMTP_USER=process.env.SMTP_USER;
+export const SMTP_PASS=process.env.SMTP_PASS;
+export const MY_EMAIL=process.env.MY_EMAIL;
+
