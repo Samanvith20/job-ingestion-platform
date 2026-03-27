@@ -15,12 +15,30 @@ import Sentry from '../../../sentry.js';
 
 import { preprocessQueue } from '../../../queue/queue.js';
 import { RawJob } from '../../../db/rawJobmodel.js';
-import axios from 'axios';
 
+
+
+export async function fetchJobDetail(url) {
+  try {
+    const res = await axiosInstance.get(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+      },
+    });
+    //console.log("HTML response:;",res.data)
+
+    return res.data;
+  } catch (err) {
+     console.error("err ",err.message)
+  }
+}
 function extractExperience(html) {
-  if (!html) return null;``
+  
+  if (!html) return null;
+ 
 
   const metaMatch = html.match(/(\d+)\s*-\s*(\d+)\s*years/i);
+ // console.log("metamatch in experience ::",metaMatch)
 
   if (!metaMatch) return null;
 
@@ -29,28 +47,7 @@ function extractExperience(html) {
     max: parseInt(metaMatch[2]),
   };
 }
-function extractSkills(html) {
-  if (!html) return [];
 
-  // 🔥 Extract from meta description (BEST SOURCE)
-  const metaMatch = html.match(/<meta name="description" content="([^"]+)"/i);
-
-  if (!metaMatch) return [];
-
-  const content = metaMatch[1];
-
-  // Extract skills part (after "in")
-  const skillsMatch = content.match(/experience.*?in (.+?)\./i);
-
-  if (!skillsMatch) return [];
-
-  const skillsText = skillsMatch[1];
-
-  return skillsText
-    .split(',')
-    .map(skill => skill.trim())
-    .filter(Boolean);
-}
 export async function fetchJobs() {
   await connectDB();
 
@@ -100,19 +97,7 @@ export async function fetchJobs() {
         break;
       }
 
-      async function fetchJobDetail(url) {
-  try {
-    const res = await axios.get(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-      },
-    });
-
-    return res.data;
-  } catch (err) {
-    return null;
-  }
-}
+      
 
       //-----------------------------------------
       // 💾 Process jobs
@@ -125,14 +110,16 @@ export async function fetchJobs() {
 
     // 🔥 Fetch detail (ONLY for top pages)
     let experience = null;
-    let extraSkills = [];
 
-    if (page < 5) { // ✅ IMPORTANT LIMIT
+  
+
+
       const html = await fetchJobDetail(job.public_url);
-
+       
       experience = extractExperience(html);
-      extraSkills = extractSkills(html);
-    }
+      
+   
+    
 
     const doc = await RawJob.create({
       rawData: {
@@ -140,7 +127,7 @@ export async function fetchJobs() {
 
         // 🔥 ADD ENRICHED DATA HERE
         experience,
-        extraSkills,
+     
       },
 
       externalId,

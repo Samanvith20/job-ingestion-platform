@@ -4,27 +4,37 @@ import {
   findRole,
 } from '../../utils/ScraperUtilityfunctions.js';
 
+
+function parseLocations(locationsRaw) {
+  if (!locationsRaw || typeof locationsRaw !== "string") return [];
+
+  return locationsRaw
+    .replace(/\band\b/gi, ",")
+    .replace(/[|/]/g, ",")
+    .split(",")
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+
 export default async function instahyreParser(rawJobDoc) {
   try {
-    const rawJob = rawJobDoc.rawData;
+    const rawJob = rawJobDoc
 
     // ---- Locations ----
-    const locations = rawJob.locations
-      ? rawJob.locations.split(',').map((l) => l.trim()).filter(Boolean)
-      : [];
+    const locations = rawJob?.locations
+  ? parseLocations(rawJob.locations)
+  : [];
 
     // ---- Skills (MERGED) ----
     const baseSkills = Array.isArray(rawJob.keywords)
       ? rawJob.keywords
       : [];
 
-    const extraSkills = Array.isArray(rawJob.extraSkills)
-      ? rawJob.extraSkills
-      : [];
+  
 
     const allSkills = Array.from(new Set([
       ...baseSkills,
-      ...extraSkills
     ]));
 
     const validSkills = filterValidSkills(allSkills);
