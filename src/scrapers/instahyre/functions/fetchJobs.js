@@ -8,7 +8,7 @@ import {
   LOCATIONS,
 } from '../data/constants.js';
 
-import { axiosInstance, delay } from '../../../utils/ScraperUtilityfunctions.js';
+import { axiosInstance, delay, randomDelayMs } from '../../../utils/ScraperUtilityfunctions.js';
 import { connectDB } from '../../../db/connection.js';
 import instahyreLogger from '../instahyrelogger.js';
 import Sentry from '../../../sentry.js';
@@ -20,6 +20,7 @@ import { RawJob } from '../../../db/rawJobmodel.js';
 
 export async function fetchJobDetail(url) {
   try {
+    randomDelayMs(1500, 3500);
     const res = await axiosInstance.get(url, {
       headers: {
         "User-Agent": "Mozilla/5.0",
@@ -29,7 +30,18 @@ export async function fetchJobDetail(url) {
 
     return res.data;
   } catch (err) {
-     console.error("err ",err.message)
+
+         console.error("err ", err.message);
+
+    // 🔥 Optional: retry on 429
+    if (err.response?.status === 429) {
+      console.log("⏳ Rate limited on detail, retrying...");
+      await delay(3000);
+      return fetchJobDetail(url); // retry once
+    }
+
+    return null;
+
   }
 }
 function extractExperience(html) {
