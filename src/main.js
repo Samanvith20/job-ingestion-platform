@@ -11,6 +11,7 @@ import logger from "./logger/logger.js";
 import redis from "./config/redis.js";
 import crypto from "crypto";
 import { instahyreScraper } from "./scrapers/instahyre/index.js";
+import { startHiristScraper } from "./scrapers/hirist/index.js";
 
 async function acquireLock(key, ttl = 60 * 60) {
   const value = crypto.randomUUID();
@@ -33,13 +34,14 @@ async function releaseLock(key, value) {
  const SCRAPER_CONFIG = {
   MORNING: ["foundit", "naukri"],
   AFTERNOON: ["foundit", "naukri"],
-  NIGHT: ["foundit", "naukri", "instahyre"], // 👈 only here
+  NIGHT: ["foundit", "naukri", "instahyre" ,"hirist"], // 👈 only here
 };
 
 export const SCRAPERS = {
   foundit: founditScraper,
   naukri: naukriScraper,
   instahyre: instahyreScraper,
+  hirist:startHiristScraper
 };
 
 // ── Single pipeline: scrape → ingest → sync → post-process ───────────────────

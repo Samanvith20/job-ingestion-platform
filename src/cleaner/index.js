@@ -1,5 +1,6 @@
 import logger from '../logger/logger.js';
 import founditParser from './parsers/founditparser.js';
+import hiristParser from './parsers/hirisitparser.js';
 import instahyreParser from './parsers/instahyreparser.js';
 import internshalaParser from './parsers/internshalaparser.js';
 
@@ -38,6 +39,10 @@ export async function Cleanerfunction(data, site) {
        case 'instahyre' :
         logger.debug('➡️ Using Instahyre parser');
         result =  instahyreParser(data);
+        break;
+       case 'hirist':
+        logger.debug('➡️ Using Hirist parser');
+        result =  hiristParser(data);
         break;
 
       default:

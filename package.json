@@ -29,7 +29,6 @@
     "axios": "^1.13.4",
     "axios-retry": "^4.5.0",
     "bullmq": "^5.67.3",
-    "cheerio": "^1.2.0",
     "compute-cosine-similarity": "^1.1.0",
     "dotenv": "^17.2.4",
     "https-proxy-agent": "^7.0.6",
