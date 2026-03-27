@@ -1,6 +1,7 @@
 // postProcessingFixed.js
 import neo4j from "neo4j-driver";
 import { NEO4J_PASSWORD, NEO4J_URI, NEO4J_USER } from "./constants.js";
+import logger from "../logger/logger.js";
 
 const driver = neo4j.driver(
   NEO4J_URI,
@@ -11,7 +12,7 @@ async function createRoleSkillLinks() {
   const session = driver.session({ defaultAccessMode: neo4j.session.WRITE });
   
   try {
-    console.log('1️⃣ Creating Role-Skill links...');
+    logger.info('1️⃣ Creating Role-Skill links...');
     
     const result = await session.run(`
       MATCH (j:Job)-[:MAPS_TO]->(r:Role)
@@ -34,7 +35,7 @@ async function createRoleSkillLinks() {
     `);
     
     const count = result.records[0].get('linksCreated').toNumber();
-    console.log(`✅ Created ${count} Role-Skill links\n`);
+    logger.info(`✅ Created ${count} Role-Skill links\n`);
     
     return count;
     
@@ -49,7 +50,7 @@ async function calculateRoleStats() {
   const session = driver.session({ defaultAccessMode: neo4j.session.WRITE });
 
   try {
-    console.log('3️⃣ Calculating RoleStats...');
+    logger.info('3️⃣ Calculating RoleStats...');
 
     const result = await session.run(`
       MATCH (j:Job)-[:MAPS_TO]->(r:Role)
@@ -72,7 +73,7 @@ async function calculateRoleStats() {
     `);
 
     const count = result.records[0].get('rolesUpdated').toNumber();
-    console.log(`✅ Updated ${count} RoleStats\n`);
+    logger.info(`✅ Updated ${count} RoleStats\n`);
 
     return count;
 
@@ -88,7 +89,7 @@ async function calculateSkillDemand() {
   const session = driver.session({ defaultAccessMode: neo4j.session.WRITE });
   
   try {
-    console.log('2️⃣ Calculating skill demand rankings...');
+    logger.info('2️⃣ Calculating skill demand rankings...');
     
     const result = await session.run(`
       MATCH (s:Skill)<-[:REQUIRES]-(j:Job)
@@ -120,7 +121,7 @@ async function calculateSkillDemand() {
     `);
     
     const count = result.records[0].get('skillsAnalyzed').toNumber();
-    console.log(`✅ Analyzed ${count} skills\n`);
+    logger.info(`✅ Analyzed ${count} skills\n`);
     
     return count;
     
@@ -135,7 +136,7 @@ async function updateHoursOld() {
   const session = driver.session({ defaultAccessMode: neo4j.session.WRITE });
   
   try {
-    console.log('3️⃣ Updating hours_old on all active jobs...');
+    logger.info('3️⃣ Updating hours_old on all active jobs...');
     
     const result = await session.run(`
       MATCH (j:Job)
@@ -146,7 +147,7 @@ async function updateHoursOld() {
     `);
     
     const count = result.records[0].get('updated').toNumber();
-    console.log(`✅ Updated hours_old on ${count} active jobs\n`);
+    logger.info(`✅ Updated hours_old on ${count} active jobs\n`);
     
     return count;
     
@@ -159,8 +160,8 @@ async function updateHoursOld() {
 }
 
 export async function runPostProcessing() {
-  console.log("\n🔧 Running Post-Processing...\n");
-  console.log("=".repeat(60));
+logger.info("\n🔧 Running Post-Processing...\n");
+logger.info("=".repeat(60));
   
   try {
     const roleSkillLinks = await createRoleSkillLinks();
@@ -168,12 +169,12 @@ export async function runPostProcessing() {
     const roleStats      = await calculateRoleStats(); // ✅ NEW
     const hoursOldUpdated = await updateHoursOld();
 
-    console.log("=".repeat(60));
-    console.log("\n✅ POST-PROCESSING COMPLETED!");
-    console.log(`   - Role-Skill links: ${roleSkillLinks}`);
-    console.log(`   - Skills analyzed: ${skillsAnalyzed}`);
-    console.log(`   - RoleStats updated: ${roleStats}\n`);
-        console.log(`   - hours_old updated: ${hoursOldUpdated}\n`); // ← and this
+    logger.info("=".repeat(60));
+     logger.info("\n✅ POST-PROCESSING COMPLETED!");
+     logger.info(`   - Role-Skill links: ${roleSkillLinks}`);
+     logger.info(`   - Skills analyzed: ${skillsAnalyzed}`);
+     logger.info(`   - RoleStats updated: ${roleStats}\n`);
+         logger.info(`   - hours_old updated: ${hoursOldUpdated}\n`); // ← and this
     
     const session = driver.session();
     const verifyResult = await session.run(`
@@ -182,7 +183,7 @@ export async function runPostProcessing() {
     `);
 
     const total = verifyResult.records[0].get('totalLinks').toNumber();
-    console.log(`✅ Verification: ${total} total Role-Skill links exist\n`);
+     logger.info(`✅ Verification: ${total} total Role-Skill links exist\n`);
     
     await session.close();
     

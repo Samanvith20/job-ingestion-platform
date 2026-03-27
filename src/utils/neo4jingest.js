@@ -2,6 +2,7 @@ import neo4j from 'neo4j-driver';
 import { connectDB } from '../db/connection.js';
 import { Job } from '../db/jobmodel.js';
 import { BATCH_SIZE, JOB_EXPIRY_DAYS, NEO4J_PASSWORD, NEO4J_URI, NEO4J_USER } from './constants.js';
+import logger from '../logger/logger.js';
 
 // ----------------------------
 // Neo4j connection
@@ -145,7 +146,7 @@ SET sal.currency = $salary_currency,
 // ----------------------------t
  async function ingestBatch(jobs) {
   const session = driver.session({ defaultAccessMode: neo4j.session.WRITE });
-console.log("jobs inegsting into neo4j")
+
   try {
     const tx = session.beginTransaction();
 
@@ -218,7 +219,7 @@ const tools = getCanonicalTools(job).filter(t => typeof t === 'string');
 // MAIN INGESTION LOOP
 // ----------------------------
 export async function runIngestion() {
-  console.log('🚀 Starting Neo4j ingestion...');
+  logger.info('🚀 Starting Neo4j ingestion...');
 
   await connectDB();
 
@@ -226,11 +227,11 @@ export async function runIngestion() {
 
   while (true) {
     const jobs = await Job.find({ is_ingested: false }).limit(BATCH_SIZE).lean();
-    console.log('📊 Fetched batch of jobs:', jobs.length);
+    logger.info('📊 Fetched batch of jobs:', jobs.length);
 
     if (jobs.length === 0) break;
 
-    console.log(`➡️ Ingesting batch of ${jobs.length} jobs...`);
+    logger.info(`➡️ Ingesting batch of ${jobs.length} jobs...`);
 
     await ingestBatch(jobs);
 
@@ -240,7 +241,7 @@ export async function runIngestion() {
     skip += jobs.length;
   }
 
-  console.log('✅ Ingestion completed.');
+  logger.info('✅ Ingestion completed.');
   await driver.close();
   process.exit(0);
 }
