@@ -189,10 +189,10 @@ logger.info("=".repeat(60));
     
   } catch (err) {
     console.error("\n❌ POST-PROCESSING FAILED:", err);
-    process.exit(1);
+    
   } finally {
     await driver.close();
-    process.exit(0);
+   
   }
 }
 
