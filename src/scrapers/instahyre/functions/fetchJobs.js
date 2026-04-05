@@ -17,64 +17,69 @@ import { preprocessQueue } from '../../../queue/queue.js';
 import { RawJob } from '../../../db/rawJobmodel.js';
 
 
+function isValidJobPage(html) {
+  if (!html) return false;
 
+  return html.includes('years') && html.includes('Instahyre') && html.length > 5000;
+}
 export async function fetchJobDetail(url) {
   try {
-    randomDelayMs(1500, 3500);
+    await randomDelayMs(1500, 3500);
     const res = await axiosInstance.get(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0",
+        'User-Agent': 'Mozilla/5.0',
       },
     });
     //console.log("HTML response:;",res.data)
 
     return res.data;
   } catch (err) {
-
-         console.error("err ", err.message);
+    console.error('err ', err.message);
 
     // 🔥 Optional: retry on 429
     if (err.response?.status === 429) {
-      console.log("⏳ Rate limited on detail, retrying...");
+      console.log('⏳ Rate limited on detail, retrying...');
       await delay(3000);
       return fetchJobDetail(url); // retry once
     }
 
     return null;
-
   }
 }
+
 function extractExperience(html) {
-  
   if (!html) return null;
- 
 
-  const metaMatch = html.match(/(\d+)\s*-\s*(\d+)\s*years/i);
- // console.log("metamatch in experience ::",metaMatch)
+  let match = html.match(/(\d+)\s*-\s*(\d+)\s*(years|yrs)/i);
+  if (match) {
+    return { min: +match[1], max: +match[2] };
+  }
 
-  if (!metaMatch) return null;
+  match = html.match(/(\d+)\+\s*(years|yrs)/i);
+  if (match) {
+    return { min: +match[1], max: null };
+  }
 
-  return {
-    min: parseInt(metaMatch[1]),
-    max: parseInt(metaMatch[2]),
-  };
+  match = html.match(/(\d+)\s*(years|yrs)/i);
+  if (match) {
+    return { min: +match[1], max: +match[1] };
+  }
+
+  return null;
 }
 
 export async function fetchJobs() {
   await connectDB();
 
-  const totalJobs = 0;
+  let totalJobs = 0;
   let duplicateJobs = 0;
   let totalErrors = 0;
-
-  const DUPLICATE_STREAK_LIMIT = 40;
 
   for (const location of LOCATIONS) {
     instahyreLogger.info(`🌍 Scraping location: ${location}`);
 
-    let consecutiveDuplicates = 0;
-
     for (let page = 0; page < MAX_PAGES; page++) {
+      let newJobsInPage = 0;
       const offset = page * PAGE_LIMIT;
 
       let response;
@@ -109,71 +114,78 @@ export async function fetchJobs() {
         break;
       }
 
-      
-
       //-----------------------------------------
       // 💾 Process jobs
       //-----------------------------------------
-      
+      const externalIds = jobs.map((j) => j.id).filter(Boolean);
+
+      const existingJobs = await RawJob.find(
+        { externalId: { $in: externalIds } },
+        { externalId: 1 }
+      );
+
+      const existingSet = new Set(existingJobs.map((j) => j.externalId));
+
       for (const job of jobs) {
-  try {
-    const externalId = job?.id;
-    if (!externalId) continue;
-
-    // 🔥 Fetch detail (ONLY for top pages)
-    let experience = null;
-
-  
-
-
-      const html = await fetchJobDetail(job.public_url);
-       
-      experience = extractExperience(html);
-      
-   
-    
-
-    const doc = await RawJob.create({
-      rawData: {
-        ...job,
-
-        // 🔥 ADD ENRICHED DATA HERE
-        experience,
-     
-      },
-
-      externalId,
-      source: 'instahyre',
-      status: 'queued',
-      fetchedAt: new Date(),
-    });
-
-    await preprocessQueue.add('raw-job', { id: doc._id });
-
-  } catch (err) {
- if (err.code === 11000) {
+        const externalId = job?.id;
+        if (!externalId) continue;
+        try {
+          if (existingSet.has(externalId)) {
             duplicateJobs++;
-            consecutiveDuplicates++;
+            continue;
+          }
 
-            // 🔥 MAIN STOP LOGIC
-            if (consecutiveDuplicates >= DUPLICATE_STREAK_LIMIT) {
-              instahyreLogger.info(
-                `🛑 Duplicate streak hit → stopping ${location} at page ${page + 1}`
-              );
-              break;
-            }
+          let html = await fetchJobDetail(job.public_url);
+          if (!isValidJobPage(html)) {
+            console.log('⚠️ Invalid HTML, retrying...');
+            await delay(2000);
+            html = await fetchJobDetail(job.public_url);
+          }
+          let experience = extractExperience(html);
+
+          if (!experience) {
+            await delay(2000);
+            html = await fetchJobDetail(job.public_url);
+            experience = extractExperience(html);
+          }
+
+          if (!experience) {
+            console.log(`❌ Skipping job ${externalId}`);
+            continue;
+          }
+
+          const doc = await RawJob.create({
+            rawData: {
+              ...job,
+
+              // 🔥 ADD ENRICHED DATA HERE
+              experience,
+            },
+            externalId,
+            source: 'instahyre',
+            status: 'queued',
+            fetchedAt: new Date(),
+          });
+          newJobsInPage++;
+
+          totalJobs++;
+          instahyreLogger.info(`✅ New job saved: ${externalId}`);
+
+          await preprocessQueue.add('raw-job', { id: doc._id });
+        } catch (err) {
+          if (err.code === 11000) {
+            duplicateJobs++;
 
             continue;
           }
 
           totalErrors++;
           instahyreLogger.error(`❌ DB error: ${err.message}`);
-  }
-}
-
-      // 🔥 break outer loop if duplicates triggered
-      if (consecutiveDuplicates >= DUPLICATE_STREAK_LIMIT) break;
-
+        }
+      }
+      if (newJobsInPage === 0 && page > 5) {
+        break;
+      }
       await delay(PAGE_DELAY_MS);
     }
   }

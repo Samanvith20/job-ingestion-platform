@@ -21,4 +21,5 @@ export async function instahyreScraper() {
     instahyreLogger.error(`❌ Error: ${error.message}`);
   }
 }
+
 //instahyreScraper()

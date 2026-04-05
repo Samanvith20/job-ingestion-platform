@@ -24,122 +24,136 @@ import { preprocessQueue } from '../../../queue/queue.js';
  * @param {string} keyword - Search term used to query Hirist job listings.
  * @returns {Array<Object>} An array of raw job objects retrieved and augmented with `description` and `job_type`.
  */
+
 export async function fetchAllJobs(keyword) {
   await connectDB();
+
   let page = 0;
-  const allJobs = [];
   let hasMore = true;
 
   const metrics = {
     insertedJobs: 0,
     duplicateJobs: 0,
+    totalErrors: 0,
   };
 
   const locParam = LOCATIONS.join(',');
   const MAX_RETRIES = 3;
-  let consecutiveFailures = 0;
-  const MAX_CONSECUTIVE_FAILURES = 5;
 
   while (hasMore) {
     const url = `${BASE_URL}?query=${encodeURIComponent(keyword)}&page=${page}&loc=${locParam}&size=${PAGE_SIZE}&posting=1`;
 
-    let res;
-    let json;
-    let jobs;
-       
+    let res, json, jobs;
 
-
-    // 🔄 Retry mechanism: try API 3 times if fails
+    // 🔄 Retry logic
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         res = await axiosInstance.get(url, {
-  validateStatus: () => true,
-});
-
- json = res.data;
- jobs = json?.data || [];
-        break; // success → exit retry loop
-      } catch (err) {
-        
+          validateStatus: () => true,
+        });
+       
       
+        json = res.data;
+        console.log(`Fetched page ${page} for "${keyword}" (status: ${res.status})`);
+        jobs = json?.jobs || json?.data || json?.results || [];
+        console.log("Jobs length:", jobs.length);
+        break;
+      } catch (err) {
         hiristLogger.error(
-          `❌ API failed (attempt ${attempt}/3) for keyword "${keyword}", page ${page}: ${err.message}`
+          `❌ API failed (attempt ${attempt}) keyword "${keyword}" page ${page}: ${err.message}`
         );
+
         if (attempt < MAX_RETRIES) {
           await delay(PAGE_DELAY_MS);
         } else {
           Sentry.captureException(err);
-          hiristLogger.error(
-            `🚨 API permanently failed after ${MAX_RETRIES} retries. Skipping page ${page}.`
-          );
-
-          break;
+          metrics.totalErrors++;
         }
-
       }
-      
     }
-    
 
-    // Skip processing if all retries failed
     if (!res) {
-      consecutiveFailures++;
-      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-        hiristLogger.error('🚨 Too many consecutive failures — stopping scraper');
-        break;
-      }
       page++;
       continue;
-    } else {
-      consecutiveFailures = 0;
     }
 
-    
+    if (!jobs || jobs.length === 0) break;
 
+    //-----------------------------------------
+    // 🔥 BATCH DUPLICATE CHECK (IMPORTANT)
+    //-----------------------------------------
+    const externalIds = jobs.map(j => j.id).filter(Boolean);
 
-    // console.log("json data:",json);
+    const existingJobs = await RawJob.find(
+      { externalId: { $in: externalIds } },
+      { externalId: 1 }
+    );
 
+    const existingSet = new Set(existingJobs.map(j => j.externalId));
 
-    // Store jobs
+    let newJobsInPage = 0;
+
+    //-----------------------------------------
+    // 💾 Process jobs
+    //-----------------------------------------
     for (const jobItem of jobs) {
       try {
-        
-        
+        const externalId = jobItem?.id;
+        if (!externalId) continue;
+
+        // ✅ Skip duplicates EARLY
+        if (existingSet.has(externalId)) {
+          metrics.duplicateJobs++;
+          continue;
+        }
 
         const doc = await RawJob.create({
           rawData: jobItem,
           source: 'hirist',
-          externalId: jobItem.id,
+          externalId,
           status: 'queued',
+          fetchedAt: new Date(),
         });
 
         metrics.insertedJobs++;
+        newJobsInPage++;
+
         await preprocessQueue.add('raw-job', { id: doc._id });
+
+        // ✅ Small delay (avoid rate limit)
+        await delay(200);
+
       } catch (err) {
         if (err.code === 11000) {
-         // Sentry.captureException(err)
-          hiristLogger.error(`❌ Duplicate job ${jobItem.id}`);
           metrics.duplicateJobs++;
-        } else {
-          hiristLogger.error(`❌ Failed to insert job ${jobItem.id}: ${err.message}`);
+          continue;
         }
+
+        metrics.totalErrors++;
+        hiristLogger.error(`❌ Failed job ${jobItem.id}: ${err.message}`);
       }
     }
 
-    if (jobs.length === 0) {
+    //-----------------------------------------
+    // 🧠 SMART STOPPING
+    //-----------------------------------------
+    if (newJobsInPage === 0 && page > 5) {
+      hiristLogger.info(`🛑 No new jobs after page ${page}, stopping`);
       break;
     }
 
-    allJobs.push(...jobs);
-
-  hasMore = json?.hasMore ?? false;
+    hasMore = json?.hasMore ?? false;
     page++;
+
+    await delay(PAGE_DELAY_MS);
   }
 
-  // FINAL SUMMARY LOG
+  //-----------------------------------------
+  // 📊 FINAL LOG
+  //-----------------------------------------
   hiristLogger.info(
-    `✔ Keyword "${keyword}" completed — Inserted: ${metrics.insertedJobs}, Duplicates: ${metrics.duplicateJobs}`
+    `✔ Keyword "${keyword}" completed — Inserted: ${metrics.insertedJobs}, Duplicates: ${metrics.duplicateJobs}, Errors: ${metrics.totalErrors}`
   );
 
-  return allJobs;
+  return metrics;
 }
