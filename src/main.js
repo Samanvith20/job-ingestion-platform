@@ -1,27 +1,24 @@
-
-
-import cron from "node-cron";
-import { founditScraper } from "./scrapers/foundit/index.js";
+import cron from 'node-cron';
+import { founditScraper } from './scrapers/foundit/index.js';
 //import { internshalajobsScraper } from "./scrapers/internshala/index.js";
-import { naukriScraper } from "./scrapers/naukri/index.js";
-import { runIngestion } from "./utils/neo4jingest.js";
-import { runPostProcessing } from "./utils/postprocessing.js";
-import { syncMongoJobsToPostgres } from "./utils/postgressingest.js";
-import logger from "./logger/logger.js";
-import redis from "./config/redis.js";
-import crypto from "crypto";
-import { instahyreScraper } from "./scrapers/instahyre/index.js";
+import { naukriScraper } from './scrapers/naukri/index.js';
+import { runIngestion } from './utils/neo4jingest.js';
+import { runPostProcessing } from './utils/postprocessing.js';
+import { syncMongoJobsToPostgres } from './utils/postgressingest.js';
+import logger from './logger/logger.js';
+import redis from './config/redis.js';
+import crypto from 'crypto';
+import { instahyreScraper } from './scrapers/instahyre/index.js';
 //import { startHiristScraper } from "./scrapers/hirist/index.js";
-import { getSourceCounts } from "./utils/getSourceCounts.js";
-import { sendPipelineReport } from "./utils/sendMail.js";
-
+import { getSourceCounts } from './utils/getSourceCounts.js';
+import { sendPipelineReport } from './utils/sendMail.js';
 
 async function acquireLock(key, ttl = 60 * 60) {
   const value = crypto.randomUUID();
 
-  const result = await redis.set(key, value, "NX", "EX", ttl);
+  const result = await redis.set(key, value, 'NX', 'EX', ttl);
 
-  return result === "OK" ? value : null;
+  return result === 'OK' ? value : null;
 }
 
 async function releaseLock(key, value) {
@@ -34,10 +31,10 @@ async function releaseLock(key, value) {
 
 // scraperConfig.js
 
- const SCRAPER_CONFIG = {
-  MORNING: ["foundit", "naukri"],
-  AFTERNOON: ["foundit", "naukri"],
-  NIGHT: ["foundit", "naukri", "instahyre" ,], // 👈 only here
+const SCRAPER_CONFIG = {
+  MORNING: ['foundit', 'naukri'],
+  AFTERNOON: ['foundit', 'naukri'],
+  NIGHT: ['foundit', 'naukri', 'instahyre'], // 👈 only here
 };
 
 export const SCRAPERS = {
@@ -51,9 +48,9 @@ function getCycleTimeRange(cycleLabel) {
 
   let startTime;
 
-  if (cycleLabel === "MORNING") {
+  if (cycleLabel === 'MORNING') {
     startTime = new Date(now.setHours(0, 0, 0, 0)); // midnight → 6am
-  } else if (cycleLabel === "AFTERNOON") {
+  } else if (cycleLabel === 'AFTERNOON') {
     startTime = new Date(now.setHours(6, 0, 0, 0));
   } else {
     startTime = new Date(now.setHours(13, 0, 0, 0));
@@ -61,7 +58,7 @@ function getCycleTimeRange(cycleLabel) {
 
   return {
     startTime,
-    endTime: new Date()
+    endTime: new Date(),
   };
 }
 
@@ -73,26 +70,26 @@ async function runPipeline(cycleLabel) {
   const lockKey = `lock:${cycleLabel}`;
   const lockValue = await acquireLock(lockKey, 7200);
 
-if (!lockValue) {
-  logger.warn(`⚠️ Skipping ${cycleLabel} — another instance running`);
-  return;
-}
+  if (!lockValue) {
+    logger.warn(`⚠️ Skipping ${cycleLabel} — another instance running`);
+    return;
+  }
 
-
-  logger.info(`\n${"=".repeat(60)}`);
+  logger.info(`\n${'='.repeat(60)}`);
   logger.info(`🚀 [${cycleLabel}] Pipeline starting...`);
-  logger.info(`   Time: ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`);
-  logger.info("=".repeat(60));
+  logger.info(`   Time: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
+  logger.info('='.repeat(60));
 
   // ── Step 1: Scrape ──────────────────────────────────────────────────────
   try {
     const scrapersToRun = SCRAPER_CONFIG[cycleLabel] || [];
 
-logger.info(`Running scrapers: ${scrapersToRun.join(", ")}`);
-
-await Promise.all(
-  scrapersToRun.map((name) => SCRAPERS[name]())
-);
+    logger.info(`Running scrapers: ${scrapersToRun.join(', ')}`);
+    // Run scrapers sequentially to avoid overwhelming target sites and for easier logging.
+    for (const name of scrapersToRun) {
+      logger.info(`Running scraper: ${name}`);
+      await SCRAPERS[name]();
+    }
     logger.info(`✅ [${cycleLabel}] Scraping done`);
   } catch (err) {
     logger.error(`❌ [${cycleLabel}] Scraping failed: ${err.message}`);
@@ -128,51 +125,47 @@ await Promise.all(
     logger.error(`❌ [${cycleLabel}] Post-processing failed: ${err.message}`);
   }
   try {
-  const { startTime, endTime } = getCycleTimeRange(cycleLabel);
+    const { startTime, endTime } = getCycleTimeRange(cycleLabel);
 
-  const sourceCounts = await getSourceCounts({ startTime, endTime });
+    const sourceCounts = await getSourceCounts({ startTime, endTime });
 
-  const totalJobs = Object.values(sourceCounts).reduce((a, b) => a + b, 0);
+    const totalJobs = Object.values(sourceCounts).reduce((a, b) => a + b, 0);
 
-  await sendPipelineReport({
-    cycle: cycleLabel,
-    totalJobs,
-    sourceCounts
-  });
+    await sendPipelineReport({
+      cycle: cycleLabel,
+      totalJobs,
+      sourceCounts,
+    });
 
-  logger.info(`📩 Email report sent for ${cycleLabel}`);
-} catch (err) {
-  logger.error(`❌ Email sending failed: ${err.message}`);
-}
-  finally {
-   
-     await releaseLock(lockKey, lockValue);
+    logger.info(`📩 Email report sent for ${cycleLabel}`);
+  } catch (err) {
+    logger.error(`❌ Email sending failed: ${err.message}`);
+  } finally {
+    await releaseLock(lockKey, lockValue);
   }
 
-
   logger.info(`\n✅ [${cycleLabel}] Full pipeline completed`);
-  logger.info(`   Time: ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}\n`);
+  logger.info(`   Time: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}\n`);
 }
 
 // ── Schedule: 3x daily ────────────────────────────────────────────────────────
 // 06:00 IST — morning cycle      (fresh jobs for the day)
 // 13:00 IST — afternoon cycle    (midday postings)
 // 21:00 IST — night cycle        (end of day postings + cleanup)
-const CRON_OPTIONS = { timezone: "Asia/Kolkata" };
+const CRON_OPTIONS = { timezone: 'Asia/Kolkata' };
 
-cron.schedule("0 6  * * *", async() => await runPipeline("MORNING"),   CRON_OPTIONS);
-cron.schedule("0 13 * * *", async() => await runPipeline("AFTERNOON"), CRON_OPTIONS);
-cron.schedule("0 19 * * *", async() => await runPipeline("NIGHT"),     CRON_OPTIONS);
+cron.schedule('0 6  * * *', async () => await runPipeline('MORNING'), CRON_OPTIONS);
+cron.schedule('0 13 * * *', async () => await runPipeline('AFTERNOON'), CRON_OPTIONS);
+cron.schedule('0 19 * * *', async () => await runPipeline('NIGHT'), CRON_OPTIONS);
 
-logger.info("✅ Cron scheduler started — pipelines at 06:00, 13:00, 21:00 IST");
+logger.info('✅ Cron scheduler started — pipelines at 06:00, 13:00, 21:00 IST');
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────────
-process.on("SIGTERM", () => {
-  logger.info("SIGTERM received — shutting down scheduler");
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received — shutting down scheduler');
   process.exit(0);
 });
-process.on("SIGINT", () => { 
-  
-  logger.info("SIGINT received — shutting down scheduler");
+process.on('SIGINT', () => {
+  logger.info('SIGINT received — shutting down scheduler');
   process.exit(0);
 });
