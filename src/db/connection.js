@@ -1,16 +1,31 @@
 import mongoose from "mongoose";
 
-let isConnected = false;
+mongoose.set("bufferCommands", false);
 
 export async function connectDB() {
-  if (isConnected) return;
-
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    if (mongoose.connection.readyState === 1) {
+      return;
+    }
 
-    isConnected = true;
+    mongoose.connection.on("connected", () => {
+      console.log("MongoDB connected");
+    });
 
-    console.log("Mongo connected");
+    mongoose.connection.on("error", (err) => {
+      console.log("MongoDB error:", err);
+    });
+
+    mongoose.connection.on("disconnected", () => {
+      console.log("MongoDB disconnected");
+    });
+
+    await mongoose.connect(process.env.MONGO_URI, {
+      maxPoolSize: 20,
+      minPoolSize: 5,
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
+    });
   } catch (err) {
     console.error(err);
   }

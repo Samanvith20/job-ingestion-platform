@@ -10,8 +10,9 @@ import redis from './config/redis.js';
 import crypto from 'crypto';
 import { instahyreScraper } from './scrapers/instahyre/index.js';
 //import { startHiristScraper } from "./scrapers/hirist/index.js";
-import { getSourceCounts } from './utils/getSourceCounts.js';
+import { getSourceCounts } from './utils/getSourceCounts.js'
 import { sendPipelineReport } from './utils/sendMail.js';
+import { connectDB } from './db/connection.js';
 
 async function acquireLock(key, ttl = 60 * 60) {
   const value = crypto.randomUUID();
@@ -79,6 +80,8 @@ async function runPipeline(cycleLabel) {
   logger.info(`🚀 [${cycleLabel}] Pipeline starting...`);
   logger.info(`   Time: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
   logger.info('='.repeat(60));
+  // connect to MongoDB at the start of each cycle — ensures fresh connection and avoids idle timeouts during long processing.
+  await connectDB();
 
   // ── Step 1: Scrape ──────────────────────────────────────────────────────
   try {
