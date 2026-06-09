@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { founditScraper } from './scrapers/foundit/index.js';
-//import { internshalajobsScraper } from "./scrapers/internshala/index.js";
+
 import { naukriScraper } from './scrapers/naukri/index.js';
 import { runIngestion } from './utils/neo4jingest.js';
 import { runPostProcessing } from './utils/postprocessing.js';

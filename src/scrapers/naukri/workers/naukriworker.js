@@ -9,6 +9,13 @@ import Sentry from '../../../sentry.js';
 import { locationDoneQueue, naukriQueue, preprocessQueue } from '../../../queue/queue.js';
 import { RawJob } from '../../../db/rawJobmodel.js';
 import { chromium } from 'playwright';
+import fs from 'fs';
+
+let chromiumPath;
+
+if (process.platform === 'linux' && fs.existsSync('/snap/bin/chromium')) {
+  chromiumPath = '/snap/bin/chromium';
+}
 
 // ─── Shared state ─────────────────────────────────────────────────────────────
 let naukriCookies = '';
@@ -20,8 +27,9 @@ async function fetchHomepageCookies() {
   try {
     const res = await axiosInstance.get('https://www.naukri.com/', {
       headers: {
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'user-agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+        accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'accept-language': 'en-US,en;q=0.9',
         'cache-control': 'no-cache',
       },
@@ -43,17 +51,30 @@ async function fetchHomepageCookies() {
 // ─── Browser fetch — only triggered on 406 ────────────────────────────────────
 async function fetchNkParamFromBrowser(location) {
   naukriLogger.info(`🚀 Browser launching to refresh nkparam [${location}]`);
-
-  const browser = await chromium.launch({
-    headless: false, // xvfb-run handles display on GCP
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-  });
+  let browser;
+  try {
+    browser = await chromium.launch({
+      ...(chromiumPath && { executablePath: chromiumPath }),
+      headless: false,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+      ],
+    });
+    naukriLogger.info('✅ Browser launched successfully');
+  } catch (err) {
+    naukriLogger.error(`❌ Failed to launch browser for ${location}:`, err.message);
+  }
 
   const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    userAgent:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     viewport: { width: 1280, height: 800 },
     extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' },
   });
+  naukriLogger.info('✅ Browser context created');
 
   const page = await context.newPage();
   let capturedNkParam = null;
@@ -77,17 +98,15 @@ async function fetchNkParamFromBrowser(location) {
       timeout: 60000,
     });
 
-    await page.waitForRequest(
-      (req) => req.url().includes('jobapi/v3/search'),
-      { timeout: 20000 }
-    ).catch(() => naukriLogger.warn('⚠️ jobapi request not seen in 20s'));
+    await page
+      .waitForRequest((req) => req.url().includes('jobapi/v3/search'), { timeout: 20000 })
+      .catch(() => naukriLogger.warn('⚠️ jobapi request not seen in 20s'));
 
     await page.waitForTimeout(1000);
 
     const cookies = await context.cookies();
     cachedBrowserCookies = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
     naukriLogger.info(`🍪 Browser cookies captured: ${cookies.length}`);
-
   } finally {
     await browser.close();
   }
@@ -179,7 +198,9 @@ export async function naukriWorker() {
           metrics.failedRequests++;
 
           if (_406Retries < 3) {
-            naukriLogger.warn(`⚠️ 406 on page ${page} — refreshing nkparam (retry ${_406Retries + 1}/3)`);
+            naukriLogger.warn(
+              `⚠️ 406 on page ${page} — refreshing nkparam (retry ${_406Retries + 1}/3)`
+            );
 
             await fetchNkParamFromBrowser(location); // updates cachedNkParam + cachedBrowserCookies
 
@@ -195,7 +216,10 @@ export async function naukriWorker() {
           if (nextPage <= paginationLimit) {
             await naukriQueue.add('fetch', {
               url: url.replace(`pageNo=${page}`, `pageNo=${nextPage}`),
-              headers, location, page: nextPage, paginationLimit,
+              headers,
+              location,
+              page: nextPage,
+              paginationLimit,
             });
           } else {
             naukriLogger.info(`📊 ${location} metrics: ${JSON.stringify(metrics)}`);
@@ -219,7 +243,11 @@ export async function naukriWorker() {
             await delay(backoffMs + randomDelayMs(500, 1500));
 
             await naukriQueue.add('fetch', {
-              url, headers, location, page, paginationLimit,
+              url,
+              headers,
+              location,
+              page,
+              paginationLimit,
               _403Retries: _403Retries + 1,
             });
             return;
@@ -230,7 +258,10 @@ export async function naukriWorker() {
           if (nextPage <= paginationLimit) {
             await naukriQueue.add('fetch', {
               url: url.replace(`pageNo=${page}`, `pageNo=${nextPage}`),
-              headers, location, page: nextPage, paginationLimit,
+              headers,
+              location,
+              page: nextPage,
+              paginationLimit,
             });
           } else {
             naukriLogger.info(`📊 ${location} metrics: ${JSON.stringify(metrics)}`);
@@ -257,7 +288,10 @@ export async function naukriWorker() {
           if (nextPage <= paginationLimit) {
             await naukriQueue.add('fetch', {
               url: url.replace(`pageNo=${page}`, `pageNo=${nextPage}`),
-              headers, location, page: nextPage, paginationLimit,
+              headers,
+              location,
+              page: nextPage,
+              paginationLimit,
             });
           }
           return;
@@ -283,21 +317,21 @@ export async function naukriWorker() {
               status: 'queued',
             });
             metrics.insertedJobs++;
-                consecutiveDuplicates = 0;
+            consecutiveDuplicates = 0;
             await preprocessQueue.add('raw-job', { id: doc._id });
           } catch (err) {
             if (err.code === 11000) {
-      metrics.duplicateJobs++;
-      consecutiveDuplicates++;
+              metrics.duplicateJobs++;
+              consecutiveDuplicates++;
 
-      if (consecutiveDuplicates >= 50) {
-        naukriLogger.info(`🛑 Duplicate streak hit → stopping at page ${page}`);
-        await locationDoneQueue.add('done', { location });
-        return;
-      }
+              if (consecutiveDuplicates >= 50) {
+                naukriLogger.info(`🛑 Duplicate streak hit → stopping at page ${page}`);
+                await locationDoneQueue.add('done', { location });
+                return;
+              }
 
-      continue;
-    }
+              continue;
+            }
             //Sentry.captureException(err);
             naukriLogger.error(`❌ Failed to insert job on page ${page}:`, err.message);
           }
@@ -308,14 +342,16 @@ export async function naukriWorker() {
         if (nextPage <= paginationLimit) {
           await naukriQueue.add('fetch', {
             url: url.replace(`pageNo=${page}`, `pageNo=${nextPage}`),
-            headers, location, page: nextPage, paginationLimit,
+            headers,
+            location,
+            page: nextPage,
+            paginationLimit,
           });
           naukriLogger.info(`➡️ Queued page ${nextPage}`);
         } else {
           naukriLogger.info(`📊 ${location} metrics: ${JSON.stringify(metrics)}`);
           await locationDoneQueue.add('done', { location });
         }
-
       } catch (err) {
         metrics.failedRequests++;
         Sentry.captureException(err);
