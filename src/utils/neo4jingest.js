@@ -243,7 +243,8 @@ export async function runIngestion() {
 
   logger.info('✅ Ingestion completed.');
   await driver.close();
-  process.exit(0);
+
+  return true;
 }
 
 // runIngestion().catch((err) => {

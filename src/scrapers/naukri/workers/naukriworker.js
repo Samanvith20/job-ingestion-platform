@@ -22,6 +22,10 @@ let naukriCookies = '';
 let cachedNkParam = null;
 let cachedBrowserCookies = '';
 
+let browser = null;
+let browserContext = null;
+let browserPage = null;
+
 // ─── Homepage cookies ──────────────────────────────────────────────────────────
 async function fetchHomepageCookies() {
   try {
@@ -48,46 +52,76 @@ async function fetchHomepageCookies() {
   }
 }
 
-// ─── Browser fetch — only triggered on 406 ────────────────────────────────────
-async function fetchNkParamFromBrowser(location) {
-  naukriLogger.info(`🚀 Browser launching to refresh nkparam [${location}]`);
-  let browser;
-  try {
-    browser = await chromium.launch({
-      ...(chromiumPath && { executablePath: chromiumPath }),
-      headless: false,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-      ],
-    });
-    naukriLogger.info('✅ Browser launched successfully');
-  } catch (err) {
-    naukriLogger.error(`❌ Failed to launch browser for ${location}:`, err.message);
+async function initializeBrowser() {
+  if (browser && browser.isConnected()) {
+    return;
   }
+  
 
-  const context = await browser.newContext({
+  naukriLogger.info('🚀 Launching shared browser');
+
+ try{
+    browser = await chromium.launch({
+    ...(chromiumPath && { executablePath: chromiumPath }),
+    headless: false,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+    ],
+  });
+ }catch(err){
+  Sentry.captureException(err);
+  naukriLogger.error('⚠️ Browser launch failed:', err.message);
+  throw err;
+ }
+
+  browserContext = await browser.newContext({
     userAgent:
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     viewport: { width: 1280, height: 800 },
-    extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' },
+    extraHTTPHeaders: {
+      'accept-language': 'en-US,en;q=0.9',
+    },
   });
-  naukriLogger.info('✅ Browser context created');
 
-  const page = await context.newPage();
+  browserPage = await browserContext.newPage();
+
+  browser.on('disconnected', () => {
+    browser = null;
+    browserContext = null;
+    browserPage = null;
+  });
+
+  naukriLogger.info('✅ Shared browser ready');
+}
+
+// ─── Browser fetch — only triggered on 406 ────────────────────────────────────
+async function fetchNkParamFromBrowser(location) {
+  if (
+  !browser ||
+  !browser.isConnected() ||
+  !browserPage
+) {
+   await initializeBrowser();
+}
+
+  const context =  browserContext;
+  const page =  browserPage;
   let capturedNkParam = null;
 
-  page.on('request', (request) => {
-    if (request.url().includes('jobapi/v3/search')) {
-      const nkparam = request.headers()['nkparam'];
-      if (nkparam) {
-        capturedNkParam = nkparam;
-        naukriLogger.info('✅ nkparam captured');
-      }
+const requestHandler = (request) => {
+  if (request.url().includes('jobapi/v3/search')) {
+    const nkparam = request.headers()['nkparam'];
+
+    if (nkparam) {
+      capturedNkParam = nkparam;
     }
-  });
+  }
+};
+
+  page.on('request', requestHandler);
 
   try {
     await page.goto('https://www.naukri.com/', { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -107,8 +141,9 @@ async function fetchNkParamFromBrowser(location) {
     const cookies = await context.cookies();
     cachedBrowserCookies = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
     naukriLogger.info(`🍪 Browser cookies captured: ${cookies.length}`);
-  } finally {
-    await browser.close();
+  } catch (err) {
+    Sentry.captureException(err);
+    naukriLogger.error('⚠️ fetchNkParamFromBrowser failed:', err.message);
   }
 
   if (!capturedNkParam) {
@@ -125,6 +160,7 @@ async function fetchNkParamFromBrowser(location) {
 export async function naukriWorker() {
   setScraperContext(NAUKRI_WORKER);
   await connectDB();
+  await initializeBrowser();
   naukriLogger.info('Connected to MongoDB & worker started 🚀');
 
   function getTodayKey(location) {
