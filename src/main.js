@@ -110,14 +110,14 @@ async function runPipeline(cycleLabel) {
   }
 
   // ── Step 3: Postgres sync ───────────────────────────────────────────────
-  try {
-    logger.info(`\n[${cycleLabel}] Step 3/4 — Postgres sync...`);
-    await syncMongoJobsToPostgres();
-    logger.info(`✅ [${cycleLabel}] Postgres sync done`);
-  } catch (err) {
-    logger.error(`❌ [${cycleLabel}] Postgres sync failed: ${err.message}`);
-    // Non-fatal — continue to post-processing
-  }
+  // try {
+  //   logger.info(`\n[${cycleLabel}] Step 3/4 — Postgres sync...`);
+  //   await syncMongoJobsToPostgres();
+  //   logger.info(`✅ [${cycleLabel}] Postgres sync done`);
+  // } catch (err) {
+  //   logger.error(`❌ [${cycleLabel}] Postgres sync failed: ${err.message}`);
+  //   // Non-fatal — continue to post-processing
+  // }
 
   // ── Step 4: Post-processing ─────────────────────────────────────────────
   try {
