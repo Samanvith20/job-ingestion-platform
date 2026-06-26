@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import logger from "../logger/logger.js";
 
 mongoose.set("bufferCommands", false);
 
@@ -9,15 +10,15 @@ export async function connectDB() {
     }
 
     mongoose.connection.on("connected", () => {
-      console.log("MongoDB connected");
+      logger.info("MongoDB connected");
     });
 
     mongoose.connection.on("error", (err) => {
-      console.log("MongoDB error:", err);
+      logger.error("MongoDB error:", err);
     });
 
     mongoose.connection.on("disconnected", () => {
-      console.log("MongoDB disconnected");
+      logger.warn("MongoDB disconnected");
     });
 
     await mongoose.connect(process.env.MONGO_URI, {
@@ -27,6 +28,6 @@ export async function connectDB() {
       socketTimeoutMS: 45000,
     });
   } catch (err) {
-    console.error(err);
+    logger.error("MongoDB connection failed:", err);
   }
 }

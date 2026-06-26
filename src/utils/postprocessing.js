@@ -40,7 +40,7 @@ async function createRoleSkillLinks() {
     return count;
     
   } catch (err) {
-    console.error('❌ Failed:', err.message);
+    logger.error('❌ Role-Skill links failed: %s', err.message);
     throw err;
   } finally {
     await session.close();
@@ -78,7 +78,7 @@ async function calculateRoleStats() {
     return count;
 
   } catch (err) {
-    console.error('❌ RoleStats failed:', err.message);
+    logger.error('❌ RoleStats failed: %s', err.message);
     throw err;
   } finally {
     await session.close();
@@ -126,7 +126,7 @@ async function calculateSkillDemand() {
     return count;
     
   } catch (err) {
-    console.error('❌ Failed:', err.message);
+    logger.error('❌ Skill demand calculation failed: %s', err.message);
     throw err;
   } finally {
     await session.close();
@@ -152,7 +152,7 @@ async function updateHoursOld() {
     return count;
     
   } catch (err) {
-    console.error('❌ Failed:', err.message);
+    logger.error('❌ Updating hours_old failed: %s', err.message);
     throw err;
   } finally {
     await session.close();
@@ -188,8 +188,7 @@ logger.info("=".repeat(60));
     await session.close();
     
   } catch (err) {
-    console.error("\n❌ POST-PROCESSING FAILED:", err);
-    
+    logger.error("❌ POST-PROCESSING FAILED:", err);
   } finally {
     await driver.close();
    

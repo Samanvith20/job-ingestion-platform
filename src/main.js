@@ -76,9 +76,7 @@ async function runPipeline(cycleLabel) {
     return;
   }
 
-  logger.info(`\n${'='.repeat(60)}`);
   logger.info(`🚀 [${cycleLabel}] Pipeline starting...`);
-  logger.info(`   Time: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
   logger.info('='.repeat(60));
   // connect to MongoDB at the start of each cycle — ensures fresh connection and avoids idle timeouts during long processing.
   await connectDB();
@@ -147,8 +145,7 @@ async function runPipeline(cycleLabel) {
     await releaseLock(lockKey, lockValue);
   }
 
-  logger.info(`\n✅ [${cycleLabel}] Full pipeline completed`);
-  logger.info(`   Time: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}\n`);
+  logger.info(`✅ [${cycleLabel}] Full pipeline completed`);
 }
 
 // ── Schedule: 3x daily ────────────────────────────────────────────────────────

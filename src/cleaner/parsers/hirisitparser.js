@@ -3,6 +3,7 @@ import {
   filterValidSkills,
   findRole,
 } from '../../utils/ScraperUtilityfunctions.js';
+import logger from '../../logger/logger.js';
 
 export default async function hiristParser(rawJobDoc) {
   try {
@@ -97,7 +98,7 @@ export default async function hiristParser(rawJobDoc) {
     };
 
   } catch (error) {
-    console.error(`❌ hirist parser failed: ${error.message}`);
+    logger.error(`❌ Hirist parser failed: ${error.message}`);
     return undefined;
   }
 }

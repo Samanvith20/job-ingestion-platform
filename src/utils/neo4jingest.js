@@ -50,10 +50,7 @@ function assertNeo4jSafe(name, value) {
     );
 
   if (!isPrimitive && !isPrimitiveArray) {
-    console.error('❌ INVALID NEO4J VALUE');
-    console.error('Field:', name);
-    console.error('Type:', typeof value);
-    console.error('Value:', value);
+    logger.error('❌ INVALID NEO4J VALUE - Field: %s, Type: %s, Value: %o', name, typeof value, value);
     throw new Error(`Neo4j invalid value for field: ${name}`);
   }
 }
@@ -192,12 +189,7 @@ const tools = getCanonicalTools(job).filter(t => typeof t === 'string');
   try {
     assertNeo4jSafe(k, v);
   } catch (e) {
-    console.error('🧨 Neo4j param validation failed');
-    console.error('Job _id:', job._id);
-    console.error('Job job_id:', job.job_id);
-    console.error('Field:', k);
-    console.error('Raw value from Mongo:', job[k]);
-    console.error('Normalized value:', v);
+    logger.error('🧨 Neo4j param validation failed - Job _id: %s, Job job_id: %s, Field: %s, Raw Mongo: %o, Normalized: %o', job._id, job.job_id, k, job[k], v);
     throw e;
   }
 }
@@ -208,7 +200,7 @@ const tools = getCanonicalTools(job).filter(t => typeof t === 'string');
 
     await tx.commit();
   } catch (err) {
-    console.error('❌ Batch failed:', err.message);
+    logger.error('❌ Batch failed: %s', err.message);
     throw err;
   } finally {
     await session.close();

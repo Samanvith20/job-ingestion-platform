@@ -1,6 +1,7 @@
 import axios from "axios";
 import { Job } from "../db/jobmodel.js";
 import { connectDB } from "../db/connection.js";
+import logger from "../logger/logger.js";
 
 export async function syncMongoJobsToPostgres() {
   await connectDB();
@@ -13,7 +14,7 @@ export async function syncMongoJobsToPostgres() {
       const jobs = await Job.find({ is_published: false }).limit(2);
 
       if (!jobs.length) {
-        console.log("✅ All jobs synced");
+        logger.info("✅ All jobs synced to Postgres");
         hasMore = false;
         break;
       }
@@ -71,9 +72,9 @@ export async function syncMongoJobsToPostgres() {
         { $set: { is_published: true } }
       );
 
-      console.log(`✅ Synced batch: ${successIds.length}`);
+      logger.info(`✅ Synced batch to Postgres: ${successIds.length}`);
     } catch (err) {
-      console.error("❌ Batch failed:", err.message);
+      logger.error("❌ Batch sync to Postgres failed:", err.message);
 
       // optional: small delay before retry
       await new Promise((r) => setTimeout(r, 2000));

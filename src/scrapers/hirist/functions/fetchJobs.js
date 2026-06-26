@@ -54,9 +54,9 @@ export async function fetchAllJobs(keyword) {
        
       
         json = res.data;
-        console.log(`Fetched page ${page} for "${keyword}" (status: ${res.status})`);
+        hiristLogger.info(`Fetched page ${page} for "${keyword}" (status: ${res.status})`);
         jobs = json?.jobs || json?.data || json?.results || [];
-        console.log("Jobs length:", jobs.length);
+        hiristLogger.debug("Jobs length: %d", jobs.length);
         break;
       } catch (err) {
         hiristLogger.error(

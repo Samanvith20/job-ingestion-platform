@@ -403,6 +403,6 @@ export async function naukriWorker() {
 }
 
 naukriWorker().catch((err) => {
-  console.error('❌ Failed to start naukri worker:', err);
+  naukriLogger.error('❌ Failed to start naukri worker:', err);
   process.exit(1);
 });

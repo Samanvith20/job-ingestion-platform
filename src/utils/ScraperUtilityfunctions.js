@@ -97,7 +97,7 @@ ${skillChunk.join('\n')}
       return;
     } catch (err) {
       const message = err?.data?.error?.message || err.message || '';
-        console.log("err::",err)
+      logger.error("Micro chunk processing failed: %o", err);
       const isCreditError =
         err.statusCode === 402 ||
         message.toLowerCase().includes('more credits') ||
@@ -661,10 +661,7 @@ export async function getOnetRole(title, skills) {
       throw new Error('Embedding vector is invalid');
     }
   } catch (err) {
-    console.error('❌ Embedding failed', {
-      title,
-      error: err?.message || err,
-    });
+    logger.error('❌ Embedding failed for title: %s. Error: %s', title, err?.message || err);
 
     // IMPORTANT: let BullMQ retry this job
     throw err;

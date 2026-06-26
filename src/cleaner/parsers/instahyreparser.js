@@ -3,6 +3,7 @@ import {
   filterValidSkills,
   findRole,
 } from '../../utils/ScraperUtilityfunctions.js';
+import logger from '../../logger/logger.js';
 
 
 function parseLocations(locationsRaw) {
@@ -100,7 +101,7 @@ export default async function instahyreParser(rawJobDoc) {
     };
 
   } catch (error) {
-    console.error(`❌ instahyre parser failed: ${error.message}`);
+    logger.error(`❌ Instahyre parser failed: ${error.message}`);
     return undefined;
   }
 }

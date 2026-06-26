@@ -1,5 +1,6 @@
 
 import {  parsePostedDate } from '../../utils/ScraperUtilitiyfuctions.js';
+import logger from '../../logger/logger.js';
 
 export default function internshalaInternshipParser(rawJob) {
   try {
@@ -92,7 +93,7 @@ export default function internshalaInternshipParser(rawJob) {
       expiry_at: expiryAt,
     };
   } catch (err) {
-    console.error(`❌ internshalaInternshipParser failed: ${err.message}`);
+    logger.error(`❌ Internshala internship parser failed: ${err.message}`);
     return null;
   }
 }

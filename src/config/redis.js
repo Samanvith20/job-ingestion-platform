@@ -1,6 +1,8 @@
 import { createClient } from 'redis';
 import { REDIS_HOST, REDIS_PORT } from '../utils/constants.js';
 
+import logger from '../logger/logger.js';
+
 if (!REDIS_HOST || !REDIS_PORT) {
   throw new Error('REDIS_HOST and REDIS_PORT environment variables are required');
 }
@@ -12,13 +14,13 @@ const redis = createClient({
   },
 });
 
-redis.on('error', (err) => console.error('Redis Client Error:', err));
+redis.on('error', (err) => logger.error('Redis Client Error:', err));
 
 try {
   await redis.connect();
-  console.log('✅ Redis connected successfully');
+  logger.info('✅ Redis connected successfully');
 } catch (err) {
-  console.error('❌ Failed to connect to Redis:', err.message);
+  logger.error('❌ Failed to connect to Redis:', err.message);
   process.exit(1);
 }
 

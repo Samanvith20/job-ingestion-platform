@@ -2,7 +2,7 @@
 import { locationDoneEvents, } from '../../../queue/events.js';
 import { HEADERS } from '../data/constants.js';
 import naukriLogger from '../naukrilogger.js';
-import { locationDoneQueue, naukriQueue } from '../../../queue/queue.js';
+import { naukriQueue } from '../../../queue/queue.js';
 
 // export async function fetchJobs(location, paginationLimit, resultsPerPage, baseSearchUrl) {
 
@@ -47,8 +47,7 @@ export async function fetchJobs(location, paginationLimit, resultsPerPage, baseS
 
   const waitForLocationDone = new Promise((resolve) => {
     const handler = (event) => { 
-      
-      console.log('LOCATION DONE EVENT:', event);
+      naukriLogger.debug('LOCATION DONE EVENT: %o', event);
 
       if (event.returnvalue?.location !== location) return;
 

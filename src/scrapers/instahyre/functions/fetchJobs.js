@@ -34,11 +34,11 @@ export async function fetchJobDetail(url) {
 
     return res.data;
   } catch (err) {
-    console.error('err ', err.message);
+    instahyreLogger.error('Error fetching job details: %s', err.message);
 
     // 🔥 Optional: retry on 429
     if (err.response?.status === 429) {
-      console.log('⏳ Rate limited on detail, retrying...');
+      instahyreLogger.warn('⏳ Rate limited on detail, retrying...');
       await delay(3000);
       return fetchJobDetail(url); // retry once
     }
@@ -137,7 +137,7 @@ export async function fetchJobs() {
 
           let html = await fetchJobDetail(job.public_url);
           if (!isValidJobPage(html)) {
-            console.log('⚠️ Invalid HTML, retrying...');
+            instahyreLogger.warn('⚠️ Invalid HTML, retrying...');
             await delay(2000);
             html = await fetchJobDetail(job.public_url);
           }
@@ -150,7 +150,7 @@ export async function fetchJobs() {
           }
 
           if (!experience) {
-            console.log(`❌ Skipping job ${externalId}`);
+            instahyreLogger.warn(`❌ Skipping job ${externalId} due to lack of experience info`);
             continue;
           }
 

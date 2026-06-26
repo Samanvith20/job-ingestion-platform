@@ -4,6 +4,7 @@ import {
   findRole,
   parsePostedDate,
 } from '../../utils/ScraperUtilityfunctions.js';
+import logger from '../../logger/logger.js';
 
 /**
  * Convert a raw Foundit job payload into a normalized job object.
@@ -27,8 +28,6 @@ function mapFounditJobType(arr) {
 }
 
 export default async function founditParser(rawJob) {
-  console.log('foundit parser has been called');
-
   try {
     // ---- Locations ----
     const locations = Array.isArray(rawJob.locations)
@@ -120,7 +119,7 @@ export default async function founditParser(rawJob) {
       expiry_at: expiryAt,
     };
   } catch (error) {
-    console.error(`❌ foundit parser failed: ${error.message}`);
+    logger.error(`❌ Foundit parser failed: ${error.message}`);
     return undefined;
   }
 }

@@ -1,8 +1,7 @@
 import fs from "fs";
-import { client, processMicroChunkWithFallback, splitArray } from "./ScraperUtilityfunctions.js";
-import { generateObject } from "ai";
-import { SkillSchema } from "./schema.js";
+import { processMicroChunkWithFallback, splitArray } from "./ScraperUtilityfunctions.js";
 import redis from "../config/redis.js";
+import logger from "../logger/logger.js";
 
 // ---- CONFIG ----
 const CHUNK_SIZE = 300;
@@ -20,15 +19,12 @@ function readSkillsSnapshot() {
     .filter(Boolean);
 }
 
-
-
-
 // ---- MAIN ----
 async function run() {
   /* ---------- LOCK ---------- */
   const locked = await redis.set(LOCK_KEY, "1", { NX: true, EX: 600 });
   if (!locked) {
-    console.log("⚠️ Another run is in progress. Exiting.");
+    logger.warn("⚠️ Another run is in progress. Exiting.");
     return;
   }
 
@@ -38,14 +34,14 @@ async function run() {
     const skills = readSkillsSnapshot();
 
     if (!skills.length) {
-      console.log("ℹ️ No skills to process");
+      logger.info("ℹ️ No skills to process");
       return;
     }
 
     const redisValue = await redis.get(REDIS_KEY);
     const lastBatch = redisValue ? Number(redisValue) : -1;
 
-    console.log(`🔁 Resuming from batch ${lastBatch + 1}`);
+    logger.info(`🔁 Resuming from batch ${lastBatch + 1}`);
 
     // ---- LOAD EXISTING OUTPUT ----
     function loadSet(file) {
@@ -64,33 +60,30 @@ async function run() {
       const start = batch * CHUNK_SIZE;
       const chunk = skills.slice(start, start + CHUNK_SIZE);
 
-      console.log(`🔹 Batch ${batch}: ${chunk.length} skills`);
+      logger.info(`🔹 Batch ${batch}: ${chunk.length} skills`);
 
       const microChunks = splitArray(chunk, 25) || [];
    
-      console.log(`   - Split into ${microChunks.length} micro-chunks of 25 skills each`);
-        for (const micro of microChunks) {
-          console.log("   - Processing micro-chunk of size", micro.length);
-  if (!Array.isArray(micro) || micro.length === 0) continue;
+      logger.info(`   - Split into ${microChunks.length} micro-chunks of 25 skills each`);
+      for (const micro of microChunks) {
+        logger.debug("   - Processing micro-chunk of size %d", micro.length);
+        if (!Array.isArray(micro) || micro.length === 0) continue;
 
-  await processMicroChunkWithFallback(
-    micro,
-    technicalSet,
-    toolsSet,
-    softSet
-  );
-}
-
-
-} 
+        await processMicroChunkWithFallback(
+          micro,
+          technicalSet,
+          toolsSet,
+          softSet
+        );
+      }
     }
-   catch (err) {
+  } catch (err) {
     processedAll = false;
-    console.error("❌ Error during processing:", err);
+    logger.error("❌ Error during processing:", err);
   } finally {
     /* ---------- FINAL CLEANUP ---------- */
     if (processedAll) {
-      console.log("🧹 All batches completed. Clearing state...");
+      logger.info("🧹 All batches completed. Clearing state...");
 
       // Clear the skill file (drain queue)
       fs.writeFileSync(SKILL_FILE, "", "utf-8");
@@ -98,14 +91,14 @@ async function run() {
       // Reset progress
       await redis.del(REDIS_KEY);
 
-      console.log("♻️ File + Redis state reset");
+      logger.info("♻️ File + Redis state reset");
     }
 
     // Release lock
     await redis.del(LOCK_KEY);
   }
 
-  console.log("🎉 Run finished");
+  logger.info("🎉 Run finished");
 }
 
 run();
