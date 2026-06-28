@@ -234,10 +234,15 @@ export async function runIngestion() {
   }
 
   logger.info('✅ Ingestion completed.');
-  await driver.close();
 
   return true;
 }
+
+// Graceful shutdown — close the driver only when the process exits.
+// Do NOT call driver.close() inside runIngestion() because this module's
+// driver is a singleton and closing it permanently destroys the pool.
+process.once('SIGTERM', () => driver.close());
+process.once('SIGINT',  () => driver.close());
 
 // runIngestion().catch((err) => {
 //   console.error(err);

@@ -189,9 +189,13 @@ logger.info("=".repeat(60));
     
   } catch (err) {
     logger.error("❌ POST-PROCESSING FAILED:", err);
-  } finally {
-    await driver.close();
-   
+    throw err;
   }
 }
+
+// Graceful shutdown — close the driver only when the process exits.
+// Do NOT call driver.close() inside runPostProcessing() because this module's
+// driver is a singleton and closing it permanently destroys the pool.
+process.once('SIGTERM', () => driver.close());
+process.once('SIGINT',  () => driver.close());
 
